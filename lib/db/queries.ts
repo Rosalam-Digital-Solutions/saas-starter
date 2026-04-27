@@ -36,11 +36,21 @@ export async function getUser() {
   return user[0];
 }
 
-export async function getTeamByStripeCustomerId(customerId: string) {
+export async function getTeamByBillingCustomerId(customerId: string) {
   const result = await db
     .select()
     .from(teams)
-    .where(eq(teams.stripeCustomerId, customerId))
+    .where(eq(teams.billingCustomerId, customerId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : null;
+}
+
+export async function getTeamById(teamId: number) {
+  const result = await db
+    .select()
+    .from(teams)
+    .where(eq(teams.id, teamId))
     .limit(1);
 
   return result.length > 0 ? result[0] : null;
@@ -49,10 +59,13 @@ export async function getTeamByStripeCustomerId(customerId: string) {
 export async function updateTeamSubscription(
   teamId: number,
   subscriptionData: {
-    stripeSubscriptionId: string | null;
-    stripeProductId: string | null;
-    planName: string | null;
-    subscriptionStatus: string;
+    billingCustomerId?: string | null;
+    billingSubscriptionId?: string | null;
+    billingPlanId?: string | null;
+    billingPlanName?: string | null;
+    billingStatus: string;
+    billingCurrentPeriodEnd?: Date | null;
+    billingProvider?: string;
   }
 ) {
   await db
@@ -62,6 +75,35 @@ export async function updateTeamSubscription(
       updatedAt: new Date()
     })
     .where(eq(teams.id, teamId));
+}
+
+export async function updateTeamSubscriptionByBillingCustomerId(
+  customerId: string,
+  subscriptionData: {
+    billingSubscriptionId?: string | null;
+    billingPlanId?: string | null;
+    billingPlanName?: string | null;
+    billingStatus: string;
+    billingCurrentPeriodEnd?: Date | null;
+    billingProvider?: string;
+  }
+) {
+  const team = await getTeamByBillingCustomerId(customerId);
+
+  if (!team) {
+    console.error('Team not found for billing customer:', customerId);
+    return null;
+  }
+
+  await db
+    .update(teams)
+    .set({
+      ...subscriptionData,
+      updatedAt: new Date()
+    })
+    .where(eq(teams.id, team.id));
+
+  return await getTeamById(team.id);
 }
 
 export async function getUserWithTeam(userId: number) {

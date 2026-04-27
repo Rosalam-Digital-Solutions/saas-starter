@@ -1,12 +1,12 @@
 'use server';
 
 import { redirect } from 'next/navigation';
-import { createCheckoutSession, createCustomerPortalSession } from './stripe';
+import { createCheckoutSession, createCustomerPortalSession } from './gebar';
 import { withTeam } from '@/lib/auth/middleware';
 
 export const checkoutAction = withTeam(async (formData, team) => {
-  const priceId = formData.get('priceId') as string;
-  await createCheckoutSession({ team: team, priceId });
+  const planKey = formData.get('planKey') as string;
+  await createCheckoutSession({ team, planKey });
 });
 
 export const customerPortalAction = withTeam(async (_, team) => {

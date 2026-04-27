@@ -9,7 +9,7 @@ import {
   CardTitle,
   CardFooter
 } from '@/components/ui/card';
-import { customerPortalAction } from '@/lib/payments/actions';
+import { customerPortalAction, checkoutAction } from '@/lib/payments/actions';
 import { useActionState } from 'react';
 import { TeamDataWithMembers, User } from '@/lib/db/schema';
 import { removeTeamMember, inviteTeamMember } from '@/app/(login)/actions';
@@ -50,21 +50,30 @@ function ManageSubscription() {
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
             <div className="mb-4 sm:mb-0">
               <p className="font-medium">
-                Current Plan: {teamData?.planName || 'Free'}
+                Current Plan: {teamData?.billingPlanName || 'Free'}
               </p>
               <p className="text-sm text-muted-foreground">
-                {teamData?.subscriptionStatus === 'active'
+                {teamData?.billingStatus === 'active'
                   ? 'Billed monthly'
-                  : teamData?.subscriptionStatus === 'trialing'
+                  : teamData?.billingStatus === 'trialing'
                   ? 'Trial period'
+                  : teamData?.billingStatus === 'pending'
+                  ? 'Processing...'
                   : 'No active subscription'}
               </p>
             </div>
-            <form action={customerPortalAction}>
-              <Button type="submit" variant="outline">
-                Manage Subscription
-              </Button>
-            </form>
+            {teamData?.billingCustomerId ? (
+              <form action={customerPortalAction}>
+                <Button type="submit" variant="outline">
+                  Manage Billing
+                </Button>
+              </form>
+            ) : (
+              <form action={checkoutAction}>
+                <input type="hidden" name="planKey" value="base" />
+                <Button type="submit">Choose a Plan</Button>
+              </form>
+            )}
           </div>
         </div>
       </CardContent>

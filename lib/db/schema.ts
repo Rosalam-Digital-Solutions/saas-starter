@@ -24,11 +24,13 @@ export const teams = pgTable('teams', {
   name: varchar('name', { length: 100 }).notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
-  stripeCustomerId: text('stripe_customer_id').unique(),
-  stripeSubscriptionId: text('stripe_subscription_id').unique(),
-  stripeProductId: text('stripe_product_id'),
-  planName: varchar('plan_name', { length: 50 }),
-  subscriptionStatus: varchar('subscription_status', { length: 20 }),
+  billingProvider: varchar('billing_provider', { length: 20 }).notNull().default('gebar'),
+  billingCustomerId: text('billing_customer_id').unique(),
+  billingSubscriptionId: text('billing_subscription_id').unique(),
+  billingPlanId: text('billing_plan_id'),
+  billingPlanName: varchar('billing_plan_name', { length: 50 }),
+  billingStatus: varchar('billing_status', { length: 30 }),
+  billingCurrentPeriodEnd: timestamp('billing_current_period_end'),
 });
 
 export const teamMembers = pgTable('team_members', {
