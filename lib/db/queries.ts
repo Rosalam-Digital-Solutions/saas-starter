@@ -63,7 +63,7 @@ export async function updateTeamSubscription(
     billingSubscriptionId?: string | null;
     billingPlanId?: string | null;
     billingPlanName?: string | null;
-    billingStatus: string;
+    billingStatus?: string | null;
     billingCurrentPeriodEnd?: Date | null;
     billingProvider?: string;
   }
@@ -83,7 +83,7 @@ export async function updateTeamSubscriptionByBillingCustomerId(
     billingSubscriptionId?: string | null;
     billingPlanId?: string | null;
     billingPlanName?: string | null;
-    billingStatus: string;
+    billingStatus?: string | null;
     billingCurrentPeriodEnd?: Date | null;
     billingProvider?: string;
   }
