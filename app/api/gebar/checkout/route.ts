@@ -1,28 +1,30 @@
 import { eq } from 'drizzle-orm';
 import { db } from '@/lib/db/drizzle';
-import { users, teams, teamMembers } from '@/lib/db/schema';
-import { getUser } from '@/lib/db/queries';
+import { users, organizations, memberships, subscriptions } from '@/lib/db/schema';
+import { auth } from '@/lib/auth';
 import { getGebarPlanByKey } from '@/lib/payments/plans';
-import { setSession } from '@/lib/auth/session';
 import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(request: NextRequest) {
   console.log('=== GEBAR CHECKOUT CALLBACK ===');
   
   const searchParams = request.nextUrl.searchParams;
-  const teamId = searchParams.get('teamId');
+  const orgId = searchParams.get('teamId');
   const planKey = searchParams.get('planKey');
 
-  console.log('Callback params:', { teamId, planKey });
+  console.log('Callback params:', { orgId, planKey });
 
-  if (!teamId || !planKey) {
+  if (!orgId || !planKey) {
     console.log('Missing params, redirecting to pricing');
     return NextResponse.redirect(new URL('/pricing', request.url));
   }
 
-  const user = await getUser();
-  if (!user) {
-    console.log('No user, redirecting to sign-in');
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
+  
+  if (!session?.user) {
+    console.log('No session, redirecting to sign-in');
     return NextResponse.redirect(new URL('/sign-in', request.url));
   }
 
@@ -34,50 +36,58 @@ export async function GET(request: NextRequest) {
 
   console.log('Plan:', plan.name, plan.gebarPlanId);
 
-  const userTeam = await db
-    .select({
-      teamId: teamMembers.teamId,
-    })
-    .from(teamMembers)
-    .where(eq(teamMembers.userId, user.id))
-    .limit(1);
+  const membership = await db.query.memberships.findFirst({
+    where: eq(memberships.userId, parseInt(session.user.id)),
+  });
 
-  if (userTeam.length === 0 || userTeam[0].teamId !== Number(teamId)) {
-    console.log('User not authorized for this team');
+  if (!membership || membership.organizationId !== Number(orgId)) {
+    console.log('User not authorized for this organization');
     return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
-  const team = await db
-    .select()
-    .from(teams)
-    .where(eq(teams.id, Number(teamId)))
-    .limit(1);
+  const org = await db.query.organizations.findFirst({
+    where: eq(organizations.id, Number(orgId)),
+  });
 
-  if (team.length === 0) {
-    console.log('Team not found');
+  if (!org) {
+    console.log('Organization not found');
     return NextResponse.redirect(new URL('/pricing', request.url));
   }
 
-  const billingCustomerId = team[0].billingCustomerId || `team_${teamId}`;
+  const billingCustomerId = `org_${orgId}`;
 
-  console.log('Updating team:', teamId);
+  console.log('Updating organization:', orgId);
   console.log('Billing status: pending');
   console.log('Billing customer ID:', billingCustomerId);
 
-  await db
-    .update(teams)
-    .set({
+  const existingSub = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.organizationId, Number(orgId)),
+  });
+
+  if (existingSub) {
+    await db
+      .update(subscriptions)
+      .set({
+        billingProvider: 'gebar',
+        billingCustomerId: billingCustomerId,
+        planId: plan.gebarPlanId,
+        planName: plan.name,
+        status: 'pending',
+        updatedAt: new Date(),
+      })
+      .where(eq(subscriptions.organizationId, Number(orgId)));
+  } else {
+    await db.insert(subscriptions).values({
+      organizationId: Number(orgId),
       billingProvider: 'gebar',
       billingCustomerId: billingCustomerId,
-      billingPlanId: plan.gebarPlanId,
-      billingPlanName: plan.name,
-      billingStatus: 'pending',
-      updatedAt: new Date(),
-    })
-    .where(eq(teams.id, Number(teamId)));
+      planId: plan.gebarPlanId,
+      planName: plan.name,
+      status: 'pending',
+    });
+  }
 
-  console.log('Team updated, redirecting to dashboard');
+  console.log('Organization updated, redirecting to dashboard');
 
-  await setSession(user);
   return NextResponse.redirect(new URL('/dashboard', request.url));
 }

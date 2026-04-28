@@ -1,3 +1,4 @@
+import type { NextRequest } from 'next/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Settings,
@@ -9,22 +10,31 @@ import {
   UserMinus,
   Mail,
   CheckCircle,
+  CreditCard,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  XCircle,
   type LucideIcon,
 } from 'lucide-react';
 import { ActivityType } from '@/lib/db/schema';
-import { getActivityLogs } from '@/lib/db/queries';
+import { getOrganizationActivity } from '@/lib/db/queries';
+import { getTenantContext } from '@/lib/tenant';
 
-const iconMap: Record<ActivityType, LucideIcon> = {
+const iconMap: Record<string, LucideIcon> = {
   [ActivityType.SIGN_UP]: UserPlus,
   [ActivityType.SIGN_IN]: UserCog,
   [ActivityType.SIGN_OUT]: LogOut,
   [ActivityType.UPDATE_PASSWORD]: Lock,
   [ActivityType.DELETE_ACCOUNT]: UserMinus,
   [ActivityType.UPDATE_ACCOUNT]: Settings,
-  [ActivityType.CREATE_TEAM]: UserPlus,
-  [ActivityType.REMOVE_TEAM_MEMBER]: UserMinus,
-  [ActivityType.INVITE_TEAM_MEMBER]: Mail,
+  [ActivityType.CREATE_ORGANIZATION]: UserPlus,
+  [ActivityType.REMOVE_MEMBER]: UserMinus,
+  [ActivityType.INVITE_MEMBER]: Mail,
   [ActivityType.ACCEPT_INVITATION]: CheckCircle,
+  [ActivityType.UPDATE_SUBSCRIPTION]: CreditCard,
+  [ActivityType.UPGRADE_PLAN]: ArrowUpCircle,
+  [ActivityType.DOWNGRADE_PLAN]: ArrowDownCircle,
+  [ActivityType.CANCEL_SUBSCRIPTION]: XCircle,
 };
 
 function getRelativeTime(date: Date) {
@@ -41,35 +51,44 @@ function getRelativeTime(date: Date) {
   return date.toLocaleDateString();
 }
 
-function formatAction(action: ActivityType): string {
+function formatAction(action: string): string {
   switch (action) {
     case ActivityType.SIGN_UP:
-      return 'You signed up';
+      return 'Signed up';
     case ActivityType.SIGN_IN:
-      return 'You signed in';
+      return 'Signed in';
     case ActivityType.SIGN_OUT:
-      return 'You signed out';
+      return 'Signed out';
     case ActivityType.UPDATE_PASSWORD:
-      return 'You changed your password';
+      return 'Changed password';
     case ActivityType.DELETE_ACCOUNT:
-      return 'You deleted your account';
+      return 'Deleted account';
     case ActivityType.UPDATE_ACCOUNT:
-      return 'You updated your account';
-    case ActivityType.CREATE_TEAM:
-      return 'You created a new team';
-    case ActivityType.REMOVE_TEAM_MEMBER:
-      return 'You removed a team member';
-    case ActivityType.INVITE_TEAM_MEMBER:
-      return 'You invited a team member';
+      return 'Updated account';
+    case ActivityType.CREATE_ORGANIZATION:
+      return 'Created organization';
+    case ActivityType.REMOVE_MEMBER:
+      return 'Removed member';
+    case ActivityType.INVITE_MEMBER:
+      return 'Invited member';
     case ActivityType.ACCEPT_INVITATION:
-      return 'You accepted an invitation';
+      return 'Accepted invitation';
+    case ActivityType.UPDATE_SUBSCRIPTION:
+      return 'Updated subscription';
+    case ActivityType.UPGRADE_PLAN:
+      return 'Upgraded plan';
+    case ActivityType.DOWNGRADE_PLAN:
+      return 'Downgraded plan';
+    case ActivityType.CANCEL_SUBSCRIPTION:
+      return 'Canceled subscription';
     default:
-      return 'Unknown action occurred';
+      return action.replace(/_/g, ' ').toLowerCase();
   }
 }
 
-export default async function ActivityPage() {
-  const logs = await getActivityLogs();
+export default async function ActivityPage({ request }: { request: NextRequest }) {
+  const ctx = await getTenantContext(request);
+  const logs = ctx ? await getOrganizationActivity(ctx.organization.id) : [];
 
   return (
     <section className="flex-1 p-4 lg:p-8">
@@ -84,10 +103,8 @@ export default async function ActivityPage() {
           {logs.length > 0 ? (
             <ul className="space-y-4">
               {logs.map((log) => {
-                const Icon = iconMap[log.action as ActivityType] || Settings;
-                const formattedAction = formatAction(
-                  log.action as ActivityType
-                );
+                const Icon = iconMap[log.action] || Settings;
+                const formattedAction = formatAction(log.action);
 
                 return (
                   <li key={log.id} className="flex items-center space-x-4">
@@ -115,7 +132,7 @@ export default async function ActivityPage() {
               </h3>
               <p className="text-sm text-gray-500 max-w-sm">
                 When you perform actions like signing in or updating your
-                account, they'll appear here.
+                account, they will appear here.
               </p>
             </div>
           )}

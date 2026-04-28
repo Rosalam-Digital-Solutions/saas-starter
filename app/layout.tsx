@@ -1,7 +1,7 @@
 import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import { Manrope } from 'next/font/google';
-import { getUser, getTeamForUser } from '@/lib/db/queries';
+import { auth } from '@/lib/auth';
 import { SWRConfig } from 'swr';
 
 export const metadata: Metadata = {
@@ -15,11 +15,13 @@ export const viewport: Viewport = {
 
 const manrope = Manrope({ subsets: ['latin'] });
 
-export default function RootLayout({
-  children
+export default async function RootLayout({
+  children,
 }: {
   children: React.ReactNode;
 }) {
+  const session = await auth.api.getSession();
+
   return (
     <html
       lang="en"
@@ -29,10 +31,12 @@ export default function RootLayout({
         <SWRConfig
           value={{
             fallback: {
-              // We do NOT await here
-              // Only components that read this data will suspend
-              '/api/user': getUser(),
-              '/api/team': getTeamForUser()
+              '/api/user': session?.user ? {
+                id: session.user.id,
+                name: session.user.name,
+                email: session.user.email,
+                image: session.user.image,
+              } : null,
             }
           }}
         >

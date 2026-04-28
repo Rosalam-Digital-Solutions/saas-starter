@@ -1,59 +1,285 @@
-import { desc, and, eq, isNull } from 'drizzle-orm';
+import { eq, and, desc } from 'drizzle-orm';
 import { db } from './drizzle';
-import { activityLogs, teamMembers, teams, users } from './schema';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth/session';
+import { 
+  users, 
+  organizations, 
+  memberships, 
+  subscriptions, 
+  activityLogs,
+  type User,
+  type Organization,
+  type Membership,
+  type Subscription,
+} from './schema';
+import { auth } from '@/lib/auth';
 
-export async function getUser() {
-  const sessionCookie = (await cookies()).get('session');
-  if (!sessionCookie || !sessionCookie.value) {
-    return null;
-  }
+// ============ USER QUERIES ============
 
-  const sessionData = await verifyToken(sessionCookie.value);
-  if (
-    !sessionData ||
-    !sessionData.user ||
-    typeof sessionData.user.id !== 'number'
-  ) {
-    return null;
-  }
-
-  if (new Date(sessionData.expires) < new Date()) {
-    return null;
-  }
-
-  const user = await db
+export async function getUserById(userId: number) {
+  const result = await db
     .select()
     .from(users)
-    .where(and(eq(users.id, sessionData.user.id), isNull(users.deletedAt)))
+    .where(eq(users.id, userId))
     .limit(1);
 
-  if (user.length === 0) {
-    return null;
-  }
+  return result[0] ?? null;
+}
 
-  return user[0];
+export async function getUserByEmail(email: string) {
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+// ============ ORGANIZATION QUERIES ============
+
+export async function getOrganizationById(orgId: number) {
+  const result = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.id, orgId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function getOrganizationBySlug(slug: string) {
+  const result = await db
+    .select()
+    .from(organizations)
+    .where(eq(organizations.slug, slug))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+// ============ MEMBERSHIP QUERIES ============
+
+export async function getMembershipByUserAndOrg(userId: number, orgId: number) {
+  const result = await db
+    .select()
+    .from(memberships)
+    .where(and(
+      eq(memberships.userId, userId),
+      eq(memberships.organizationId, orgId)
+    ))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function getUserMemberships(userId: number) {
+  return await db
+    .select()
+    .from(memberships)
+    .where(eq(memberships.userId, userId));
+}
+
+export async function getOrganizationMemberships(orgId: number) {
+  return await db
+    .select({
+      membership: memberships,
+      user: {
+        id: users.id,
+        name: users.name,
+        email: users.email,
+        image: users.image,
+      },
+    })
+    .from(memberships)
+    .leftJoin(users, eq(memberships.userId, users.id))
+    .where(eq(memberships.organizationId, orgId));
+}
+
+// ============ SUBSCRIPTION QUERIES ============
+
+export async function getOrganizationSubscription(orgId: number) {
+  const result = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.organizationId, orgId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function getSubscriptionByBillingCustomerId(customerId: string) {
+  const result = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.billingCustomerId, customerId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function updateSubscription(
+  orgId: number,
+  data: {
+    billingCustomerId?: string | null;
+    billingSubscriptionId?: string | null;
+    planId?: string | null;
+    planName?: string | null;
+    status?: 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' | null;
+    currentPeriodStart?: Date | null;
+    currentPeriodEnd?: Date | null;
+    cancelAtPeriodEnd?: boolean;
+  }
+) {
+  await db
+    .update(subscriptions)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(subscriptions.organizationId, orgId));
+}
+
+export async function createOrUpdateSubscription(
+  orgId: number,
+  data: {
+    billingProvider?: string;
+    billingCustomerId?: string | null;
+    billingSubscriptionId?: string | null;
+    planId?: string | null;
+    planName?: string | null;
+    status?: string | null;
+    currentPeriodStart?: Date | null;
+    currentPeriodEnd?: Date | null;
+  }
+) {
+  const existing = await getOrganizationSubscription(orgId);
+  
+  if (existing) {
+    const { status: _status, ...rest } = data;
+    return await db
+      .update(subscriptions)
+      .set({
+        ...rest,
+        ...(_status !== undefined ? { status: _status as SubscriptionStatus } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(subscriptions.organizationId, orgId))
+      .returning();
+  }
+  
+  return await db
+    .insert(subscriptions)
+    .values({
+      organizationId: orgId,
+      billingProvider: data.billingProvider ?? 'gebar',
+      billingCustomerId: data.billingCustomerId,
+      billingSubscriptionId: data.billingSubscriptionId,
+      planId: data.planId,
+      planName: data.planName,
+      status: (data.status as any) ?? 'pending',
+      currentPeriodStart: data.currentPeriodStart,
+      currentPeriodEnd: data.currentPeriodEnd,
+    })
+    .returning();
+}
+
+// ============ ACTIVITY LOGS ============
+
+export async function logActivity(
+  orgId: number,
+  userId: number | null,
+  action: string,
+  ipAddress?: string
+) {
+  return await db
+    .insert(activityLogs)
+    .values({
+      organizationId: orgId,
+      userId,
+      action,
+      ipAddress,
+    })
+    .returning();
+}
+
+export async function getOrganizationActivity(orgId: number, limit = 50) {
+  return await db
+    .select()
+    .from(activityLogs)
+    .where(eq(activityLogs.organizationId, orgId))
+    .orderBy(desc(activityLogs.timestamp))
+    .limit(limit);
+}
+
+// ============ BETTER AUTH SESSION HELPERS ============
+
+export async function getSessionFromRequest(request: Request) {
+  return await auth.api.getSession({
+    headers: request.headers,
+  });
+}
+
+export async function getCurrentUserFromRequest(request: Request) {
+  const session = await getSessionFromRequest(request);
+  return session?.user ?? null;
+}
+
+// ============ ADMIN QUERIES ============
+
+export async function getAllUsers(limit = 50, offset = 0) {
+  return await db
+    .select()
+    .from(users)
+    .orderBy(desc(users.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function getAllOrganizations(limit = 50, offset = 0) {
+  return await db
+    .select()
+    .from(organizations)
+    .orderBy(desc(organizations.createdAt))
+    .limit(limit)
+    .offset(offset);
+}
+
+export async function getAllSubscriptions() {
+  return await db
+    .select()
+    .from(subscriptions)
+    .orderBy(desc(subscriptions.createdAt));
+}
+
+// ============ SLUG GENERATION ============
+
+export async function generateUniqueSlug(name: string): Promise<string> {
+  const baseSlug = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
+  
+  let slug = baseSlug;
+  let counter = 1;
+  
+  while (await getOrganizationBySlug(slug)) {
+    slug = `${baseSlug}-${counter}`;
+    counter++;
+  }
+  
+  return slug;
+}
+
+// ============ LEGACY COMPATIBILITY ============
+
+export async function getUser() {
+  return await getCurrentUserFromRequest(new Request('http://localhost'));
 }
 
 export async function getTeamByBillingCustomerId(customerId: string) {
-  const result = await db
-    .select()
-    .from(teams)
-    .where(eq(teams.billingCustomerId, customerId))
-    .limit(1);
-
-  return result.length > 0 ? result[0] : null;
-}
-
-export async function getTeamById(teamId: number) {
-  const result = await db
-    .select()
-    .from(teams)
-    .where(eq(teams.id, teamId))
-    .limit(1);
-
-  return result.length > 0 ? result[0] : null;
+  const subscription = await getSubscriptionByBillingCustomerId(customerId);
+  if (!subscription) return null;
+  return await getOrganizationById(subscription.organizationId);
 }
 
 export async function updateTeamSubscription(
@@ -68,13 +294,14 @@ export async function updateTeamSubscription(
     billingProvider?: string;
   }
 ) {
-  await db
-    .update(teams)
-    .set({
-      ...subscriptionData,
-      updatedAt: new Date()
-    })
-    .where(eq(teams.id, teamId));
+  await updateSubscription(teamId, {
+    billingCustomerId: subscriptionData.billingCustomerId,
+    billingSubscriptionId: subscriptionData.billingSubscriptionId,
+    planId: subscriptionData.billingPlanId,
+    planName: subscriptionData.billingPlanName,
+    status: subscriptionData.billingStatus,
+    currentPeriodEnd: subscriptionData.billingCurrentPeriodEnd,
+  });
 }
 
 export async function updateTeamSubscriptionByBillingCustomerId(
@@ -83,90 +310,25 @@ export async function updateTeamSubscriptionByBillingCustomerId(
     billingSubscriptionId?: string | null;
     billingPlanId?: string | null;
     billingPlanName?: string | null;
-    billingStatus?: string | null;
+    billingStatus: string;
     billingCurrentPeriodEnd?: Date | null;
     billingProvider?: string;
   }
 ) {
-  const team = await getTeamByBillingCustomerId(customerId);
-
-  if (!team) {
-    console.error('Team not found for billing customer:', customerId);
+  const subscription = await getSubscriptionByBillingCustomerId(customerId);
+  
+  if (!subscription) {
+    console.error('Organization subscription not found for billing customer:', customerId);
     return null;
   }
 
-  await db
-    .update(teams)
-    .set({
-      ...subscriptionData,
-      updatedAt: new Date()
-    })
-    .where(eq(teams.id, team.id));
-
-  return await getTeamById(team.id);
-}
-
-export async function getUserWithTeam(userId: number) {
-  const result = await db
-    .select({
-      user: users,
-      teamId: teamMembers.teamId
-    })
-    .from(users)
-    .leftJoin(teamMembers, eq(users.id, teamMembers.userId))
-    .where(eq(users.id, userId))
-    .limit(1);
-
-  return result[0];
-}
-
-export async function getActivityLogs() {
-  const user = await getUser();
-  if (!user) {
-    throw new Error('User not authenticated');
-  }
-
-  return await db
-    .select({
-      id: activityLogs.id,
-      action: activityLogs.action,
-      timestamp: activityLogs.timestamp,
-      ipAddress: activityLogs.ipAddress,
-      userName: users.name
-    })
-    .from(activityLogs)
-    .leftJoin(users, eq(activityLogs.userId, users.id))
-    .where(eq(activityLogs.userId, user.id))
-    .orderBy(desc(activityLogs.timestamp))
-    .limit(10);
-}
-
-export async function getTeamForUser() {
-  const user = await getUser();
-  if (!user) {
-    return null;
-  }
-
-  const result = await db.query.teamMembers.findFirst({
-    where: eq(teamMembers.userId, user.id),
-    with: {
-      team: {
-        with: {
-          teamMembers: {
-            with: {
-              user: {
-                columns: {
-                  id: true,
-                  name: true,
-                  email: true
-                }
-              }
-            }
-          }
-        }
-      }
-    }
+  await updateSubscription(subscription.organizationId, {
+    billingSubscriptionId: subscriptionData.billingSubscriptionId,
+    planId: subscriptionData.billingPlanId,
+    planName: subscriptionData.billingPlanName,
+    status: subscriptionData.billingStatus,
+    currentPeriodEnd: subscriptionData.billingCurrentPeriodEnd,
   });
 
-  return result?.team || null;
+  return await getOrganizationById(subscription.organizationId);
 }

@@ -1,38 +1,28 @@
 import { redirect } from 'next/navigation';
-import { Team } from '@/lib/db/schema';
-import { getUser, updateTeamSubscription, getTeamByBillingCustomerId, getTeamById, updateTeamSubscriptionByBillingCustomerId } from '@/lib/db/queries';
-import { getGebarPlanByKey, getGebarPlans, validatePlanConfig } from './plans';
-import { env } from '@/lib/env';
+import type { NextRequest } from 'next/server';
+import { Organization, Subscription } from '@/lib/db/schema';
+import { getSessionFromRequest, getOrganizationSubscription } from '@/lib/db/queries';
+import { getGebarPlanByKey, validatePlanConfig } from './plans';
 
-let gebar: any = null;
-
-function getGebarClient() {
-  if (!gebar) {
-    console.log('Initializing GebarBilling client...');
-    const GebarBilling = require('@gebarbilling/server').default;
-    gebar = new GebarBilling(process.env.GEBARBILLING_SECRET_KEY!, {
-      baseUrl: process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et',
-    });
-    console.log('GebarBilling client initialized');
-  }
-  return gebar;
+export interface CheckoutSessionParams {
+  request: NextRequest;
+  organization: Organization | null;
+  planKey: string;
 }
 
 export async function createCheckoutSession({
-  team,
+  request,
+  organization,
   planKey
-}: {
-  team: Team | null;
-  planKey: string;
-}) {
+}: CheckoutSessionParams) {
   console.log('=== CREATE CHECKOUT SESSION ===');
   console.log('Plan key:', planKey);
-  console.log('Team:', team?.id);
+  console.log('Organization:', organization?.id);
 
-  const user = await getUser();
+  const session = await getSessionFromRequest(request);
 
-  if (!team || !user) {
-    console.log('No team or user, redirecting to sign-up');
+  if (!session?.user || !organization) {
+    console.log('No session or organization, redirecting to sign-up');
     redirect(`/sign-up?redirect=checkout&planKey=${planKey}`);
   }
 
@@ -51,108 +41,124 @@ export async function createCheckoutSession({
     throw err;
   }
 
-  let billingCustomerId = team.billingCustomerId;
+  let GebarBilling: any;
+  try {
+    const module = await import('@gebarbilling/server');
+    GebarBilling = module.default;
+  } catch (e) {
+    console.error('Failed to import GebarBilling:', e);
+    throw new Error('GebarBilling SDK not available');
+  }
+
+  const client = new GebarBilling(process.env.GEBARBILLING_SECRET_KEY!, {
+    baseUrl: process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et',
+  });
+
+  const existingSubscription = await getOrganizationSubscription(organization.id);
+  let billingCustomerId = existingSubscription?.billingCustomerId;
   
   if (!billingCustomerId) {
-    billingCustomerId = `team_${team.id}`;
+    billingCustomerId = `org_${organization.id}`;
     console.log('Creating billing customer ID:', billingCustomerId);
-    await updateTeamSubscription(team.id, {
-      billingCustomerId,
-      billingStatus: 'pending',
-      billingProvider: 'gebar'
-    });
-    console.log('Billing customer ID saved to team');
   }
 
   console.log('Using billing customer ID:', billingCustomerId);
 
-  const client = getGebarClient();
-  
   console.log('Creating checkout session with Gebar...');
   console.log('Request:', {
     customerId: billingCustomerId,
     planId: plan.gebarPlanId,
   });
 
-  const session = await client.checkout.sessions.create({
+  const checkoutSession = await client.checkout.sessions.create({
     customerId: billingCustomerId,
     planId: plan.gebarPlanId,
     metadata: {
-      userId: user.id.toString(),
-      teamId: team.id.toString(),
+      userId: session.user.id.toString(),
+      organizationId: organization.id.toString(),
+      organizationSlug: organization.slug,
       planKey: plan.key,
       provider: 'gebar'
     }
   });
 
-  console.log('Checkout session response:', JSON.stringify(session, null, 2));
+  console.log('Checkout session response:', JSON.stringify(checkoutSession, null, 2));
 
-  if (!session.url) {
+  if (!checkoutSession.url) {
     console.error('No URL in checkout session response');
     throw new Error('Failed to create checkout session. No URL returned.');
   }
 
-  console.log('Redirecting to checkout URL:', session.url);
-  redirect(session.url);
+  console.log('Redirecting to checkout URL:', checkoutSession.url);
+  redirect(checkoutSession.url);
 }
 
-export async function createCustomerPortalSession(team: Team) {
-  console.log('=== CREATE CUSTOMER PORTAL SESSION ===');
-  console.log('Team:', team?.id);
+export interface PortalSessionParams {
+  request: NextRequest;
+  organization: Organization;
+}
 
-  if (!team.billingCustomerId) {
+export async function createCustomerPortalSession({
+  request,
+  organization
+}: PortalSessionParams) {
+  console.log('=== CREATE CUSTOMER PORTAL SESSION ===');
+  console.log('Organization:', organization?.id);
+
+  if (!organization.billingCustomerId) {
     console.log('No billing customer ID, redirecting to pricing');
     redirect('/pricing');
   }
 
-  console.log('Using billing customer ID:', team.billingCustomerId);
+  console.log('Using billing customer ID:', organization.billingCustomerId);
 
-  const client = getGebarClient();
+  let GebarBilling: any;
+  try {
+    const module = await import('@gebarbilling/server');
+    GebarBilling = module.default;
+  } catch (e) {
+    console.error('Failed to import GebarBilling:', e);
+    throw new Error('GebarBilling SDK not available');
+  }
+
+  const client = new GebarBilling(process.env.GEBARBILLING_SECRET_KEY!, {
+    baseUrl: process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et',
+  });
 
   console.log('Creating portal session with Gebar...');
-  const session = await client.portal.sessions.create({
-    customerId: team.billingCustomerId,
+  const portalSession = await client.portal.sessions.create({
+    customerId: organization.billingCustomerId,
     returnUrl: `${process.env.BASE_URL}/dashboard`
   });
 
-  console.log('Portal session response:', JSON.stringify(session, null, 2));
+  console.log('Portal session response:', JSON.stringify(portalSession, null, 2));
 
-  return session;
+  return portalSession;
 }
 
-export async function getGebarProducts() {
-  const plans = getGebarPlans();
-  
-  return plans.map((plan) => ({
-    id: plan.gebarPlanId || plan.key,
-    name: plan.name,
-    description: plan.description,
-    defaultPriceId: plan.gebarPlanId
-  }));
+export function hasBillingAccess(subscription: Subscription | null) {
+  if (!subscription) return false;
+  return ['active', 'trialing', 'pending'].includes(subscription.status ?? '');
 }
 
-export async function getGebarPrices() {
-  const plans = getGebarPlans();
-  
-  return plans.map((plan) => ({
-    id: plan.gebarPlanId || `${plan.key}-price`,
-    productId: plan.gebarPlanId || plan.key,
-    unitAmount: plan.unitAmount,
-    currency: plan.currency,
-    interval: plan.interval,
-    trialPeriodDays: plan.trialPeriodDays
-  }));
-}
-
-export function getBillingAccessForTeam(team: Team) {
-  const hasAccess = ['active', 'trialing', 'pending'].includes(team.billingStatus ?? '');
-  
-  return {
-    hasAccess,
-    status: team.billingStatus,
-    planName: team.billingPlanName,
-    planId: team.billingPlanId
-  };
+export function getBillingStatusMessage(status: string | null | undefined): string {
+  switch (status) {
+    case 'active':
+      return 'Active subscription';
+    case 'trialing':
+      return 'Trial period';
+    case 'pending':
+      return 'Processing...';
+    case 'canceled':
+    case 'cancelled':
+      return 'Subscription canceled';
+    case 'past_due':
+      return 'Payment past due';
+    case 'paused':
+      return 'Subscription paused';
+    default:
+      return 'No active subscription';
+  }
 }
 
 export async function handleGebarSubscriptionEvent(payload: any) {
@@ -165,8 +171,7 @@ export async function handleGebarSubscriptionEvent(payload: any) {
     data.customerId ||
     data.customer_id ||
     data.billingCustomerId ||
-    data.userId ||
-    data.user_id;
+    data.organizationId;
 
   if (!customerId) {
     console.error('No customer ID found in webhook payload');
@@ -176,6 +181,14 @@ export async function handleGebarSubscriptionEvent(payload: any) {
 
   console.log('Extracted customer ID:', customerId);
 
+  const { getSubscriptionByBillingCustomerId, createOrUpdateSubscription } = await import('@/lib/db/queries');
+  const subscription = await getSubscriptionByBillingCustomerId(customerId);
+
+  if (!subscription) {
+    console.error('No subscription found for billing customer:', customerId);
+    return;
+  }
+
   const subscriptionId =
     data.subscriptionId ||
     data.subscription_id ||
@@ -184,68 +197,38 @@ export async function handleGebarSubscriptionEvent(payload: any) {
   const planId =
     data.planId ||
     data.plan_id ||
-    data.productId ||
-    data.product_id;
+    data.productId;
 
   const planName =
     data.planName ||
     data.plan_name ||
-    data.productName ||
-    data.product_name;
+    data.productName;
 
   const status =
     data.status ||
-    data.subscriptionStatus ||
-    data.subscription_status;
+    data.subscriptionStatus;
 
   const currentPeriodEnd =
     data.currentPeriodEnd ||
     data.current_period_end ||
-    data.periodEnd ||
-    data.period_end;
+    data.periodEnd;
 
   const updateData: any = {
-    billingStatus: status,
-    billingProvider: 'gebar'
+    billingProvider: 'gebar',
+    billingSubscriptionId: subscriptionId,
+    planId: planId,
+    planName: planName,
+    status: status,
   };
 
-  if (subscriptionId) {
-    updateData.billingSubscriptionId = subscriptionId;
-    console.log('Subscription ID:', subscriptionId);
-  }
-
-  if (planId) {
-    updateData.billingPlanId = planId;
-    console.log('Plan ID:', planId);
-  }
-
-  if (planName) {
-    updateData.billingPlanName = planName;
-    console.log('Plan Name:', planName);
-  }
-
   if (currentPeriodEnd) {
-    updateData.billingCurrentPeriodEnd = new Date(currentPeriodEnd);
-    console.log('Current Period End:', currentPeriodEnd);
+    updateData.currentPeriodEnd = new Date(currentPeriodEnd);
   }
 
   console.log('Status:', status);
+  console.log('Updating subscription with:', JSON.stringify(updateData, null, 2));
 
-  console.log('Updating DB with:', JSON.stringify(updateData, null, 2));
+  await createOrUpdateSubscription(subscription.organizationId, updateData);
 
-  const result = await updateTeamSubscriptionByBillingCustomerId(customerId, updateData);
-
-  if (result) {
-    console.log('DB updated successfully, team:', result.id);
-  } else {
-    console.error('DB update failed - team not found for customer:', customerId);
-  }
-
-  const unknownFields = Object.keys(data).filter(
-    key => !['customerId', 'customer_id', 'billingCustomerId', 'userId', 'user_id', 'subscriptionId', 'subscription_id', 'id', 'planId', 'plan_id', 'productId', 'product_id', 'planName', 'plan_name', 'productName', 'product_name', 'status', 'subscriptionStatus', 'subscription_status', 'currentPeriodEnd', 'current_period_end', 'periodEnd', 'period_end'].includes(key)
-  );
-
-  if (unknownFields.length > 0) {
-    console.log('Unknown webhook payload fields (for mapping reference):', unknownFields);
-  }
+  console.log('Subscription updated successfully');
 }

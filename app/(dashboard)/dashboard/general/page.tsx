@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Loader2 } from 'lucide-react';
 import { updateAccount } from '@/app/(login)/actions';
-import { User } from '@/lib/db/schema';
 import useSWR from 'swr';
 import { Suspense } from 'react';
 
@@ -19,17 +18,21 @@ type ActionState = {
   success?: string;
 };
 
-type AccountFormProps = {
-  state: ActionState;
-  nameValue?: string;
-  emailValue?: string;
+type UserData = {
+  id: number;
+  name: string | null;
+  email: string;
 };
 
 function AccountForm({
   state,
   nameValue = '',
   emailValue = ''
-}: AccountFormProps) {
+}: {
+  state: ActionState;
+  nameValue?: string;
+  emailValue?: string;
+}) {
   return (
     <>
       <div>
@@ -54,15 +57,16 @@ function AccountForm({
           type="email"
           placeholder="Enter your email"
           defaultValue={emailValue}
-          required
+          disabled
         />
+        <p className="text-xs text-gray-500 mt-1">Email cannot be changed</p>
       </div>
     </>
   );
 }
 
 function AccountFormWithData({ state }: { state: ActionState }) {
-  const { data: user } = useSWR<User>('/api/user', fetcher);
+  const { data: user } = useSWR<UserData>('/api/user', fetcher);
   return (
     <AccountForm
       state={state}
