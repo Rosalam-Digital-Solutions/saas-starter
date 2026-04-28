@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Manrope } from 'next/font/google';
 import { auth } from '@/lib/auth';
 import { SWRConfig } from 'swr';
+import { headers } from 'next/headers';
 
 export const metadata: Metadata = {
   title: 'Next.js SaaS Starter',
@@ -20,7 +21,17 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth.api.getSession();
+  let session = null;
+  
+  try {
+    const headersList = await headers();
+    session = await auth.api.getSession({
+      headers: headersList,
+    });
+  } catch (e) {
+    // Ignore auth errors during build/static generation
+    console.log('Auth error during build:', e);
+  }
 
   return (
     <html

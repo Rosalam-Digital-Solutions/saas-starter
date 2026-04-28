@@ -8,8 +8,9 @@ const authRoutes = ['/sign-in', '/sign-up'];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
-  // Skip auth during build (static generation)
-  if (!request.headers.get('host')) {
+  // Skip auth during static generation (no headers in some build contexts)
+  const host = request.headers.get('host');
+  if (!host || host.includes('localhost') && process.env.NODE_ENV === 'production') {
     return NextResponse.next();
   }
   
