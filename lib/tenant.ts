@@ -48,7 +48,7 @@ export async function getTenantContext(request: NextRequest): Promise<TenantCont
   } else {
     // Fallback: get user's first organization
     const membership = await db.query.memberships.findFirst({
-      where: eq(memberships.userId, session.user.id),
+      where: eq(memberships.userId, parseInt(session.user.id)),
       with: {
         organization: true,
       },
@@ -66,7 +66,7 @@ export async function getTenantContext(request: NextRequest): Promise<TenantCont
   // Get user's membership for this org
   const membership = await db.query.memberships.findFirst({
     where: and(
-      eq(memberships.userId, session.user.id),
+      eq(memberships.userId, parseInt(session.user.id)),
       eq(memberships.organizationId, organization.id)
     ),
   });
@@ -80,8 +80,17 @@ export async function getTenantContext(request: NextRequest): Promise<TenantCont
     where: eq(subscriptions.organizationId, organization.id),
   });
   
+  // Get user from DB
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, parseInt(session.user.id)),
+  });
+  
+  if (!user) {
+    return null;
+  }
+  
   return {
-    user: session.user as User,
+    user,
     organization,
     membership,
     subscription: subscription ?? null,

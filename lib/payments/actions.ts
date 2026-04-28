@@ -31,7 +31,7 @@ export const customerPortalAction = async (formData: FormData) => {
     redirect('/sign-in');
   }
   
-  if (!ctx.organization.billingCustomerId) {
+  if (!ctx.subscription?.billingCustomerId) {
     redirect('/pricing');
   }
   

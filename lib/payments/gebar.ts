@@ -105,12 +105,15 @@ export async function createCustomerPortalSession({
   console.log('=== CREATE CUSTOMER PORTAL SESSION ===');
   console.log('Organization:', organization?.id);
 
-  if (!organization.billingCustomerId) {
+  const subscription = await getOrganizationSubscription(organization.id);
+  const billingCustomerId = subscription?.billingCustomerId;
+
+  if (!billingCustomerId) {
     console.log('No billing customer ID, redirecting to pricing');
     redirect('/pricing');
   }
 
-  console.log('Using billing customer ID:', organization.billingCustomerId);
+  console.log('Using billing customer ID:', billingCustomerId);
 
   let GebarBilling: any;
   try {
@@ -127,7 +130,7 @@ export async function createCustomerPortalSession({
 
   console.log('Creating portal session with Gebar...');
   const portalSession = await client.portal.sessions.create({
-    customerId: organization.billingCustomerId,
+    customerId: billingCustomerId,
     returnUrl: `${process.env.BASE_URL}/dashboard`
   });
 

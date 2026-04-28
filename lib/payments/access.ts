@@ -1,12 +1,19 @@
 import { Team } from '@/lib/db/schema';
 
-export function hasBillingAccess(team: Team | null | undefined): boolean {
+export function hasBillingAccess(
+  team: Team | null | undefined,
+  subscriptionStatus?: string | null
+): boolean {
   if (!team) return false;
-  return ['active', 'trialing', 'pending'].includes(team.billingStatus ?? '');
+  const status = subscriptionStatus ?? '';
+  return ['active', 'trialing', 'pending'].includes(status);
 }
 
-export function requireBillingAccess(team: Team | null | undefined): void {
-  if (!hasBillingAccess(team)) {
+export function requireBillingAccess(
+  team: Team | null | undefined,
+  subscriptionStatus?: string | null
+): void {
+  if (!hasBillingAccess(team, subscriptionStatus)) {
     throw new Error('Billing access required. Please choose a plan.');
   }
 }

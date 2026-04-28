@@ -160,7 +160,7 @@ export async function createOrUpdateSubscription(
       .update(subscriptions)
       .set({
         ...rest,
-        ...(_status !== undefined ? { status: _status as SubscriptionStatus } : {}),
+        ...(_status !== undefined ? { status: _status as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' } : {}),
         updatedAt: new Date(),
       })
       .where(eq(subscriptions.organizationId, orgId))
@@ -299,7 +299,7 @@ export async function updateTeamSubscription(
     billingSubscriptionId: subscriptionData.billingSubscriptionId,
     planId: subscriptionData.billingPlanId,
     planName: subscriptionData.billingPlanName,
-    status: subscriptionData.billingStatus,
+    status: subscriptionData.billingStatus as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' | null,
     currentPeriodEnd: subscriptionData.billingCurrentPeriodEnd,
   });
 }
@@ -326,7 +326,7 @@ export async function updateTeamSubscriptionByBillingCustomerId(
     billingSubscriptionId: subscriptionData.billingSubscriptionId,
     planId: subscriptionData.billingPlanId,
     planName: subscriptionData.billingPlanName,
-    status: subscriptionData.billingStatus,
+    status: subscriptionData.billingStatus as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' | null,
     currentPeriodEnd: subscriptionData.billingCurrentPeriodEnd,
   });
 

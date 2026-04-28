@@ -1,17 +1,18 @@
 import { db } from './drizzle';
-import { users, teams, teamMembers } from './schema';
-import { hashPassword } from '@/lib/auth/session';
+import { users, organizations, memberships } from './schema';
+import bcrypt from 'bcryptjs';
 
 async function seed() {
   const email = 'test@test.com';
   const password = 'admin123';
-  const passwordHash = await hashPassword(password);
+  const passwordHash = await bcrypt.hash(password, 12);
 
   const [user] = await db
     .insert(users)
     .values([
       {
         email: email,
+        name: 'Test User',
         passwordHash: passwordHash,
         role: "owner",
       },
@@ -20,20 +21,22 @@ async function seed() {
 
   console.log('Initial user created.');
 
-  const [team] = await db
-    .insert(teams)
+  const [org] = await db
+    .insert(organizations)
     .values({
-      name: 'Test Team',
+      name: 'Test Organization',
+      slug: 'test-org',
+      ownerId: user.id,
     })
     .returning();
 
-  await db.insert(teamMembers).values({
-    teamId: team.id,
+  await db.insert(memberships).values({
+    organizationId: org.id,
     userId: user.id,
     role: 'owner',
   });
 
-  console.log('Initial team created.');
+  console.log('Initial organization created.');
   console.log('\nNote: Product and pricing information is now managed in your GebarBilling dashboard.');
   console.log('Set GEBARBILLING_BASE_PLAN_ID and GEBARBILLING_PLUS_PLAN_ID in your environment.');
 }

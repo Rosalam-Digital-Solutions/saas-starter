@@ -8,6 +8,11 @@ const authRoutes = ['/sign-in', '/sign-up'];
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   
+  // Skip auth during build (static generation)
+  if (!request.headers.get('host')) {
+    return NextResponse.next();
+  }
+  
   // Check if route is protected
   const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route));
   const isAuthRoute = authRoutes.some(route => pathname.startsWith(route));

@@ -1,4 +1,7 @@
 import type { NextRequest } from 'next/server';
+import { headers } from 'next/headers';
+
+export const dynamic = 'force-dynamic';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Settings,
