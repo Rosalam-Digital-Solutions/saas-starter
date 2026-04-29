@@ -5,7 +5,6 @@ import { db } from '@/lib/db/drizzle';
 import { users, organizations, memberships, activityLogs } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
-import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { generateUniqueSlug } from '@/lib/db/queries';
 
@@ -34,21 +33,6 @@ function getSessionCookieFromHeader(setCookieHeader: string | null): {
   };
 }
 
-async function setSessionCookieFromAuthHeader(setCookieHeader: string | null): Promise<void> {
-  const sessionCookie = getSessionCookieFromHeader(setCookieHeader);
-  if (!sessionCookie) {
-    throw new Error('Unable to establish a session cookie');
-  }
-
-  const cookieStore = await cookies();
-  cookieStore.set(sessionCookie.name, sessionCookie.value, {
-    httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
-    secure: process.env.NODE_ENV === 'production',
-  });
-}
-
 function getActionErrorMessage(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) {
     return error.message;
@@ -74,18 +58,15 @@ export async function signIn(prevState: any, formData: FormData): Promise<Action
   }
 
   try {
-    const { data } = await auth.api.signInEmail({
-      email: result.data.email,
-      password: result.data.password,
-      fetchOptions: {
-        onSuccess(context) {
-          return setSessionCookieFromAuthHeader(context.response.headers.get('set-cookie'));
-        },
+    const sessionResponse = await auth.api.signInEmail({
+      body: {
+        email: result.data.email,
+        password: result.data.password,
       },
     });
 
-    if (!data?.user) {
-      return { error: 'Authentication failed' };
+    if (!sessionResponse.token || !sessionResponse.user) {
+      return { error: 'Invalid credentials' };
     }
 
     if (redirectTo === 'checkout') {
@@ -118,24 +99,21 @@ export async function signUp(prevState: any, formData: FormData): Promise<Action
   }
 
   try {
-    const { data } = await auth.api.signUpEmail({
-      name: result.data.name,
-      email: result.data.email,
-      password: result.data.password,
-      fetchOptions: {
-        onSuccess(context) {
-          return setSessionCookieFromAuthHeader(context.response.headers.get('set-cookie'));
-        },
+    const sessionResponse = await auth.api.signUpEmail({
+      body: {
+        name: result.data.name,
+        email: result.data.email,
+        password: result.data.password,
       },
     });
 
-    if (!data?.user) {
+    if (!sessionResponse.user) {
       return { error: 'Account creation failed' };
     }
 
     if (result.data.organizationName) {
       const slug = await generateUniqueSlug(result.data.organizationName);
-      const ownerId = parseInt(data.user.id, 10);
+      const ownerId = parseInt(sessionResponse.user.id, 10);
       const [org] = await db
         .insert(organizations)
         .values({

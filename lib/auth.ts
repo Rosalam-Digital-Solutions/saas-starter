@@ -13,6 +13,11 @@ export const auth = betterAuth({
       verification: schema.verifications,
     },
   }),
+  advanced: {
+    database: {
+      generateId: 'serial',
+    },
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
