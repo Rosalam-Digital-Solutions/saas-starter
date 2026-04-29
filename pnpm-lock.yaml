@@ -22,7 +22,7 @@ importers:
         version: 0.1.0-beta.0(react@19.1.0)
       '@gebarbilling/server':
         specifier: beta
-        version: 0.1.0-beta.0
+        version: 0.1.0-beta.2
       '@gebarbilling/webhooks':
         specifier: beta
         version: 0.1.0-beta.0
@@ -695,6 +695,9 @@ packages:
 
   '@gebarbilling/server@0.1.0-beta.0':
     resolution: {integrity: sha512-te7OzrS4GlDEOD3oUI370p2RVHW8sbnRIt3R+zR/1UFdZ+xm6JRwwkhE9VtGgYdC1dhHCD43s/N0MrqDqJCCew==}
+
+  '@gebarbilling/server@0.1.0-beta.2':
+    resolution: {integrity: sha512-kpF87sdvIv8OrSSGG3R7B0A1zxQXCCb6DYaIyRAmLFczUrNwLLHDu3Npfe2oX83O/2yuIHJbLa9Qf2Yn4WBsWw==}
 
   '@gebarbilling/types@0.1.0-beta.0':
     resolution: {integrity: sha512-+mbV7ckn9BC6QKjO3StzYx1owPpi2K9A/XumAX5gAZx1zBM+QEKxKxOES4nG8E/FUWEwTYrz14vRneJIJZFzpQ==}
@@ -2876,6 +2879,12 @@ snapshots:
       react: 19.1.0
 
   '@gebarbilling/server@0.1.0-beta.0':
+    dependencies:
+      '@gebarbilling/core': 0.1.0-beta.0
+      '@gebarbilling/types': 0.1.0-beta.0
+      '@gebarbilling/webhooks': 0.1.0-beta.0
+
+  '@gebarbilling/server@0.1.0-beta.2':
     dependencies:
       '@gebarbilling/core': 0.1.0-beta.0
       '@gebarbilling/types': 0.1.0-beta.0
