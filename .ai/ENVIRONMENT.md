@@ -17,6 +17,9 @@ This file documents the environment variables discovered in the repository.
 | `GEBARBILLING_BASE_PRICE_MONTHLY` | Optional | `lib/payments/plans.ts`, `lib/env.ts` | Display/configured monthly price for the Base plan. | `800` |
 | `GEBARBILLING_PLUS_PRICE_MONTHLY` | Optional | `lib/payments/plans.ts`, `lib/env.ts` | Display/configured monthly price for the Plus plan. | `1200` |
 | `GEBARBILLING_CURRENCY` | Optional | `lib/payments/plans.ts`, `lib/env.ts` | Currency code used for pricing display/config. | `usd` |
+| `NEXT_PUBLIC_GEBARBILLING_PUBLISHABLE_KEY` | Yes for browser checkout | `lib/payments/browser.ts` | Browser-safe GebarBilling publishable key. Never use the secret key here. | `pk_test_xxx` |
+| `NEXT_PUBLIC_GEBARBILLING_BASE_URL` | Optional | `lib/payments/browser.ts`, `lib/env.ts` | Browser-safe GebarBilling API base URL. | `https://api.gebarbilling.et` |
+| `NEXT_PUBLIC_APP_URL` | Optional | `lib/payments/gebar.ts`, `lib/env.ts` | Browser-safe app URL used for checkout return links. | `http://localhost:3000` |
 
 ## Local Setup
 
@@ -32,5 +35,6 @@ This file documents the environment variables discovered in the repository.
 
 ## Client-Safe vs Server-Only
 
-- No client-safe environment variables were discovered in the current repository.
-- All discovered variables should be treated as server-only unless the codebase explicitly introduces public values later.
+- Server-only: `BASE_URL`, `POSTGRES_URL`, `AUTH_SECRET`, and every `GEBARBILLING_*` secret or plan variable.
+- Client-safe: only `NEXT_PUBLIC_GEBARBILLING_PUBLISHABLE_KEY`, `NEXT_PUBLIC_GEBARBILLING_BASE_URL`, and `NEXT_PUBLIC_APP_URL`.
+- Do not expose `GEBARBILLING_SECRET_KEY` or `GEBARBILLING_WEBHOOK_SECRET` to client code.

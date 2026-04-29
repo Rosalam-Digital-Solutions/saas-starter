@@ -24,6 +24,12 @@ export const env = {
   GEBAR_BASE_PRICE_MONTHLY: optional('GEBARBILLING_BASE_PRICE_MONTHLY', '800'),
   GEBAR_PLUS_PRICE_MONTHLY: optional('GEBARBILLING_PLUS_PRICE_MONTHLY', '1200'),
   GEBAR_CURRENCY: optional('GEBARBILLING_CURRENCY', 'usd'),
+
+  NEXT_PUBLIC_APP_URL: optional('NEXT_PUBLIC_APP_URL', 'http://localhost:3000'),
+  NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN: optional(
+    'NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN',
+    'https://checkout.gebar.et'
+  ),
 } as const;
 
 export function validateGebarConfig(): void {
@@ -51,9 +57,9 @@ export function validateGebarConfig(): void {
   
   if (issues.length > 0) {
     throw new Error(
-      `Missing required GebarBilling configuration: ${issues.join(', ')}`
+      `Missing required Gebar configuration: ${issues.join(', ')}`
     );
   }
   
-  console.log('✅ GebarBilling configuration validated');
+  console.log('Gebar configuration validated');
 }

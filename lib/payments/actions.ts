@@ -1,65 +1,23 @@
 'use server';
 
-import { redirect } from 'next/navigation';
-import type { NextRequest } from 'next/server';
-import { createCheckoutSession, createCustomerPortalSession } from './gebar';
-import { getTenantContext, requireAuth, isAdmin } from '@/lib/tenant';
-
 export const checkoutAction = async (formData: FormData) => {
-  const planKey = formData.get('planKey') as string;
-  const request = formData.get('request') as unknown as NextRequest;
-  
-  const ctx = await getTenantContext(request);
-  
-  if (!ctx) {
-    redirect(`/sign-up?redirect=checkout&planKey=${planKey}`);
-  }
-  
-  await createCheckoutSession({
-    request,
-    organization: ctx.organization,
-    planKey
-  });
+  const planKey = formData.get('planKey') as string | null;
+
+  throw new Error(
+    `checkoutAction is deprecated. Use POST /api/billing/checkout${planKey ? ` for ${planKey}` : ''}.`
+  );
 };
 
-export const customerPortalAction = async (formData: FormData) => {
-  const request = formData.get('request') as unknown as NextRequest;
-  
-  const ctx = await getTenantContext(request);
-  
-  if (!ctx) {
-    redirect('/sign-in');
-  }
-  
-  if (!ctx.subscription?.billingCustomerId) {
-    redirect('/pricing');
-  }
-  
-  const portalSession = await createCustomerPortalSession({
-    request,
-    organization: ctx.organization
-  });
-  
-  redirect(portalSession.url);
+export const customerPortalAction = async () => {
+  throw new Error(
+    'customerPortalAction is deprecated. Use POST /api/billing/portal.'
+  );
 };
 
 export const upgradePlanAction = async (formData: FormData) => {
-  const planKey = formData.get('planKey') as string;
-  const request = formData.get('request') as unknown as NextRequest;
-  
-  const ctx = await getTenantContext(request);
-  
-  if (!ctx) {
-    redirect('/sign-in');
-  }
-  
-  if (!isAdmin(ctx)) {
-    throw new Error('Only admins can upgrade plans');
-  }
-  
-  await createCheckoutSession({
-    request,
-    organization: ctx.organization,
-    planKey
-  });
+  const planKey = formData.get('planKey') as string | null;
+
+  throw new Error(
+    `upgradePlanAction is deprecated. Use POST /api/billing/checkout${planKey ? ` for ${planKey}` : ''}.`
+  );
 };

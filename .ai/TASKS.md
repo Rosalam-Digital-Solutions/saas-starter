@@ -2,6 +2,13 @@
 
 ## Now
 
+### Verify Gebar frontend package helpers
+
+- Goal: confirm the browser, React, and Next.js GebarBilling helpers fit the app's client-button checkout flow.
+- Files likely involved: `lib/payments/browser.ts`, `components/billing/checkout-button.tsx`, `components/billing/portal-button.tsx`, `app/(dashboard)/pricing/page.tsx`
+- Acceptance criteria: `@gebarbilling/js` redirect helpers work, React package provider/button integration is understood, Next.js package helper compatibility is verified, and any fallback redirect logic is replaced if the SDK supports it.
+- Validation command if known: `pnpm build`
+
 ### Harden Gebar webhook route
 
 - Goal: make webhook verification and event handling safe for production.

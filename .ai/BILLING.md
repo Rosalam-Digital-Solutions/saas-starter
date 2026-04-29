@@ -9,13 +9,19 @@ GebarBilling
 ```text
 Pricing page
 ↓
-Server action: checkoutAction
+Client CheckoutButton
 ↓
-`lib/payments/gebar.ts`
+POST /api/gebar/checkout
 ↓
-GebarBilling checkout session
+@gebarbilling/server creates checkout session
 ↓
-Redirect to Gebar checkout URL
+Browser uses @gebarbilling/js or redirect URL
+↓
+Gebar hosted checkout
+↓
+GET /api/gebar/checkout marks pending
+↓
+Verified webhook updates final state
 ```
 
 Checkout plans are defined in `lib/payments/plans.ts` and rendered on `app/(dashboard)/pricing/page.tsx`.
@@ -64,13 +70,17 @@ Webhook handling is the source of truth for subscription state.
 - `GEBARBILLING_BASE_PRICE_MONTHLY`
 - `GEBARBILLING_PLUS_PRICE_MONTHLY`
 - `GEBARBILLING_CURRENCY`
+- `NEXT_PUBLIC_GEBARBILLING_PUBLISHABLE_KEY`
+- `NEXT_PUBLIC_GEBARBILLING_BASE_URL`
+- `NEXT_PUBLIC_APP_URL`
 
 ## Security Rules
 
 - Never expose the GebarBilling secret key to client code.
 - Do not trust checkout callbacks as proof of active billing.
 - Verify webhook signatures before processing events.
-- Billing operations should be server-side.
+- Billing operations that require secrets should be server-side.
+- Public browser components may use `@gebarbilling/js` only with publishable keys and URLs returned by API routes.
 
 ## Testing Checklist
 

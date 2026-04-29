@@ -25,6 +25,7 @@ export const sessions = pgTable('sessions', {
   userAgent: text('user_agent'),
   ipAddress: text('ip_address'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 });
 
 export const accounts = pgTable('accounts', {

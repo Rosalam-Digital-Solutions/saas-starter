@@ -7,7 +7,7 @@ import { headers } from 'next/headers';
 
 export const metadata: Metadata = {
   title: 'Next.js SaaS Starter',
-  description: 'Get started quickly with Next.js, Postgres, and GebarBilling.'
+  description: 'Get started quickly with Next.js, Postgres, and Gebar.'
 };
 
 export const viewport: Viewport = {

@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
     request.headers.get('x-gebarbilling-signature');
 
   if (!signature) {
-    console.error('Missing GebarBilling signature header');
+    console.error('Missing Gebar signature header');
     return NextResponse.json(
       { error: 'Missing signature header' },
       { status: 400 }

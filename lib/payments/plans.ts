@@ -58,7 +58,7 @@ export function getGebarPlanByPlanId(planId: string): GebarPlanConfig | undefine
 export function validatePlanConfig(plan: GebarPlanConfig): void {
   if (!plan.gebarPlanId) {
     throw new Error(
-      `GebarBilling plan ID not configured for ${plan.key} plan. ` +
+      `Gebar plan ID not configured for ${plan.key} plan. ` +
       `Please set GEBARBILLING_${plan.key.toUpperCase()}_PLAN_ID in your environment.`
     );
   }

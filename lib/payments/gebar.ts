@@ -1,19 +1,125 @@
 import { redirect } from 'next/navigation';
 import type { NextRequest } from 'next/server';
 import { Organization, Subscription } from '@/lib/db/schema';
-import { getSessionFromRequest, getOrganizationSubscription } from '@/lib/db/queries';
+import {
+  createOrUpdateSubscription,
+  getSessionFromRequest,
+  getOrganizationSubscription,
+} from '@/lib/db/queries';
 import { getGebarPlanByKey, validatePlanConfig } from './plans';
+
+function splitName(name?: string | null) {
+  if (!name) return { firstName: undefined, lastName: undefined };
+
+  const [firstName, ...rest] = name.trim().split(/\s+/);
+  return {
+    firstName,
+    lastName: rest.length ? rest.join(' ') : undefined,
+  };
+}
+
+async function postHostedCheckoutSession(input: {
+  email: string;
+  externalUserId: string;
+  firstName?: string;
+  lastName?: string;
+  returnUrl: string;
+  cancelUrl: string;
+  planId: string;
+}) {
+  const baseUrl = process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et';
+  const checkoutDomain =
+    process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et';
+  const checkoutBaseUrl = checkoutDomain.replace(/\/+$/, '');
+  const endpoint = new URL('/merchant/session/new_session', baseUrl);
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.GEBARBILLING_SECRET_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      email: input.email,
+      externalUserId: input.externalUserId,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      returnUrl: input.returnUrl,
+      cancelUrl: input.cancelUrl,
+      planId: Number(input.planId) || input.planId,
+    }),
+  });
+
+  const text = await response.text();
+  let payload: any;
+
+  try {
+    payload = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(
+      `Gebar hosted checkout returned non-JSON response (${response.status}): ${text || 'empty body'}`
+    );
+  }
+
+  if (!response.ok || (typeof payload.code === 'number' && payload.code !== 0)) {
+    throw new Error(
+      payload.message ||
+        `Gebar hosted checkout failed with status ${response.status}`
+    );
+  }
+
+  const data = payload.data || {};
+  const url =
+    data.url ||
+    data.checkoutUrl ||
+    payload.redirect ||
+    (data.clientSession
+      ? `${checkoutBaseUrl}/hosted/checkout?planId=${encodeURIComponent(input.planId)}&env=prod&session=${encodeURIComponent(data.clientSession)}`
+      : undefined);
+
+  if (!url) {
+    throw new Error('Gebar hosted checkout did not return a checkout URL or client session.');
+  }
+
+  return {
+    id: data.clientSession || data.clientToken || `session_${Date.now()}`,
+    url,
+    customerId: data.userId || input.externalUserId,
+    email: data.email || input.email,
+    externalUserId: data.externalUserId || input.externalUserId,
+    raw: payload,
+  };
+}
+
+async function createGebarClient() {
+  let GebarBilling: any;
+  try {
+    const module = await import('@gebarbilling/server');
+    GebarBilling = module.default;
+  } catch (e) {
+    console.error('Failed to import Gebar SDK:', e);
+    throw new Error('Gebar SDK not available');
+  }
+
+  return new GebarBilling(process.env.GEBARBILLING_SECRET_KEY!, {
+    baseUrl: process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et',
+  });
+}
 
 export interface CheckoutSessionParams {
   request: NextRequest;
   organization: Organization | null;
   planKey: string;
+  successUrl?: string;
+  cancelUrl?: string;
 }
 
 export async function createCheckoutSession({
   request,
   organization,
-  planKey
+  planKey,
+  successUrl,
+  cancelUrl,
 }: CheckoutSessionParams) {
   console.log('=== CREATE CHECKOUT SESSION ===');
   console.log('Plan key:', planKey);
@@ -41,26 +147,12 @@ export async function createCheckoutSession({
     throw err;
   }
 
-  let GebarBilling: any;
-  try {
-    const module = await import('@gebarbilling/server');
-    GebarBilling = module.default;
-  } catch (e) {
-    console.error('Failed to import GebarBilling:', e);
-    throw new Error('GebarBilling SDK not available');
-  }
-
-  const client = new GebarBilling(process.env.GEBARBILLING_SECRET_KEY!, {
-    baseUrl: process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et',
-  });
+  const client = await createGebarClient();
 
   const existingSubscription = await getOrganizationSubscription(organization.id);
-  let billingCustomerId = existingSubscription?.billingCustomerId;
-  
-  if (!billingCustomerId) {
-    billingCustomerId = `org_${organization.id}`;
-    console.log('Creating billing customer ID:', billingCustomerId);
-  }
+  const externalUserId = `org_${organization.id}`;
+  const { firstName, lastName } = splitName(session.user.name);
+  let billingCustomerId = existingSubscription?.billingCustomerId || externalUserId;
 
   console.log('Using billing customer ID:', billingCustomerId);
 
@@ -68,19 +160,47 @@ export async function createCheckoutSession({
   console.log('Request:', {
     customerId: billingCustomerId,
     planId: plan.gebarPlanId,
+    email: session.user.email,
+    externalUserId,
   });
 
-  const checkoutSession = await client.checkout.sessions.create({
+  await createOrUpdateSubscription(organization.id, {
+    billingProvider: 'gebar',
+    billingCustomerId,
+    planId: plan.gebarPlanId,
+    planName: plan.name,
+    status: 'pending',
+  });
+
+  const appUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.BASE_URL ||
+    request.nextUrl.origin;
+
+  const checkoutInput = {
     customerId: billingCustomerId,
     planId: plan.gebarPlanId,
+    email: session.user.email,
+    userId: session.user.id.toString(),
+    externalUserId,
+    firstName,
+    lastName,
+    mode: 'subscription',
+    returnUrl:
+      successUrl ||
+      `${appUrl}/api/gebar/checkout?organizationId=${organization.id}&planKey=${plan.key}`,
+    cancelUrl: cancelUrl || `${appUrl}/pricing`,
     metadata: {
       userId: session.user.id.toString(),
+      email: session.user.email,
       organizationId: organization.id.toString(),
       organizationSlug: organization.slug,
       planKey: plan.key,
       provider: 'gebar'
     }
-  });
+  };
+
+  const checkoutSession = await client.checkout.sessions.create(checkoutInput);
 
   console.log('Checkout session response:', JSON.stringify(checkoutSession, null, 2));
 
@@ -89,18 +209,19 @@ export async function createCheckoutSession({
     throw new Error('Failed to create checkout session. No URL returned.');
   }
 
-  console.log('Redirecting to checkout URL:', checkoutSession.url);
-  redirect(checkoutSession.url);
+  return checkoutSession;
 }
 
 export interface PortalSessionParams {
   request: NextRequest;
   organization: Organization;
+  returnUrl?: string;
 }
 
 export async function createCustomerPortalSession({
   request,
-  organization
+  organization,
+  returnUrl,
 }: PortalSessionParams) {
   console.log('=== CREATE CUSTOMER PORTAL SESSION ===');
   console.log('Organization:', organization?.id);
@@ -115,23 +236,14 @@ export async function createCustomerPortalSession({
 
   console.log('Using billing customer ID:', billingCustomerId);
 
-  let GebarBilling: any;
-  try {
-    const module = await import('@gebarbilling/server');
-    GebarBilling = module.default;
-  } catch (e) {
-    console.error('Failed to import GebarBilling:', e);
-    throw new Error('GebarBilling SDK not available');
-  }
-
-  const client = new GebarBilling(process.env.GEBARBILLING_SECRET_KEY!, {
-    baseUrl: process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et',
-  });
+  const client = await createGebarClient();
 
   console.log('Creating portal session with Gebar...');
   const portalSession = await client.portal.sessions.create({
     customerId: billingCustomerId,
-    returnUrl: `${process.env.BASE_URL}/dashboard`
+    returnUrl:
+      returnUrl ||
+      `${process.env.NEXT_PUBLIC_APP_URL || process.env.BASE_URL}/dashboard/billing?updated=true`
   });
 
   console.log('Portal session response:', JSON.stringify(portalSession, null, 2));

@@ -16,7 +16,7 @@ This repository is a SaaS starter template built around Next.js, Postgres, Drizz
 - Postgres
 - Drizzle ORM
 - shadcn-style UI components
-- GebarBilling SDK
+- GebarBilling SDK packages: `@gebarbilling/server`, `@gebarbilling/webhooks`, `@gebarbilling/js`, `@gebarbilling/react`, and `@gebarbilling/nextjs`
 - Better Auth packages are installed
 
 ## Package Manager
@@ -51,7 +51,7 @@ Hybrid / partially migrated.
 
 ## Current External Services
 
-- GebarBilling for checkout, portal, and webhook handling
+- GebarBilling for checkout, portal, browser redirects, React/Next helpers, and webhook handling
 - Vercel is referenced in the README as the likely deployment target
 
 ## Main User Flows

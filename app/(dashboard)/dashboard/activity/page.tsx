@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { ActivityType } from '@/lib/db/schema';
 import { getOrganizationActivity } from '@/lib/db/queries';
-import { getTenantContext } from '@/lib/tenant';
+import { getTenantContextFromHeaders } from '@/lib/tenant';
 
 const iconMap: Record<string, LucideIcon> = {
   [ActivityType.SIGN_UP]: UserPlus,
@@ -89,8 +89,9 @@ function formatAction(action: string): string {
   }
 }
 
-export default async function ActivityPage({ request }: { request: NextRequest }) {
-  const ctx = await getTenantContext(request);
+export default async function ActivityPage() {
+  const heads = await headers();
+  const ctx = await getTenantContextFromHeaders(heads);
   const logs = ctx ? await getOrganizationActivity(ctx.organization.id) : [];
 
   return (

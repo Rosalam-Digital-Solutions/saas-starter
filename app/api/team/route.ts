@@ -1,6 +1,6 @@
 import { auth } from '@/lib/auth';
 import { db } from '@/lib/db/drizzle';
-import { organizations, memberships, subscriptions } from '@/lib/db/schema';
+import { organizations, memberships, subscriptions, users } from '@/lib/db/schema';
 import { eq } from 'drizzle-orm';
 import type { NextRequest } from 'next/server';
 
@@ -32,10 +32,36 @@ export async function GET(request: NextRequest) {
         where: eq(subscriptions.organizationId, organization.id),
       });
 
+      const orgMemberships = await db
+        .select({
+          id: memberships.id,
+          role: memberships.role,
+          email: memberships.email,
+          user: {
+            id: users.id,
+            name: users.name,
+            email: users.email,
+          },
+        })
+        .from(memberships)
+        .leftJoin(users, eq(memberships.userId, users.id))
+        .where(eq(memberships.organizationId, organization.id));
+
       return {
         ...organization,
         role: membership.role,
         subscription: sub ?? null,
+        memberships: orgMemberships.map((member) => ({
+          id: member.id,
+          role: member.role,
+          user: member.user?.id
+            ? member.user
+            : {
+                id: 0,
+                name: null,
+                email: member.email || 'Pending invitation',
+              },
+        })),
       };
     })
   );

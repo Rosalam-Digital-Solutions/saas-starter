@@ -15,6 +15,13 @@
       "when": 1777444940771,
       "tag": "0001_messy_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1777445639301,
+      "tag": "0002_nervous_captain_universe",
+      "breakpoints": true
     }
   ]
 }

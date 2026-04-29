@@ -13,15 +13,95 @@ export interface TenantContext {
   role: 'owner' | 'admin' | 'member' | 'viewer';
 }
 
+export async function getSessionFromHeaders(headersInstance: Headers) {
+  return await auth.api.getSession({
+    headers: headersInstance,
+  });
+}
+
 export async function getSession(request: NextRequest) {
   return await auth.api.getSession({
     headers: request.headers,
   });
 }
 
+export async function getCurrentUserFromHeaders(headersInstance: Headers) {
+  const session = await getSessionFromHeaders(headersInstance);
+  return session?.user ?? null;
+}
+
 export async function getCurrentUser(request: NextRequest) {
   const session = await getSession(request);
   return session?.user ?? null;
+}
+
+export async function getTenantContextFromHeaders(headersInstance: Headers): Promise<TenantContext | null> {
+  const session = await getSessionFromHeaders(headersInstance);
+  
+  if (!session?.user) {
+    return null;
+  }
+
+  const orgIdHeader = headersInstance.get('x-organization-id');
+  const orgSlugHeader = headersInstance.get('x-organization-slug');
+  
+  let orgQuery;
+  
+  if (orgIdHeader) {
+    orgQuery = db.query.organizations.findFirst({
+      where: eq(organizations.id, parseInt(orgIdHeader)),
+    });
+  } else if (orgSlugHeader) {
+    orgQuery = db.query.organizations.findFirst({
+      where: eq(organizations.slug, orgSlugHeader),
+    });
+  } else {
+    const membership = await db.query.memberships.findFirst({
+      where: eq(memberships.userId, parseInt(session.user.id)),
+      with: {
+        organization: true,
+      },
+    });
+    
+    orgQuery = membership?.organization;
+  }
+  
+  const organization = await orgQuery;
+  
+  if (!organization) {
+    return null;
+  }
+  
+  const membership = await db.query.memberships.findFirst({
+    where: and(
+      eq(memberships.userId, parseInt(session.user.id)),
+      eq(memberships.organizationId, organization.id)
+    ),
+  });
+  
+  if (!membership) {
+    return null;
+  }
+  
+  const subscription = await db.query.subscriptions.findFirst({
+    where: eq(subscriptions.organizationId, organization.id),
+  });
+  
+  const user = await db.query.users.findFirst({
+    where: eq(users.id, parseInt(session.user.id)),
+  });
+  
+  if (!user) {
+    return null;
+  }
+  
+  return {
+    user,
+    organization,
+    membership,
+    subscription: subscription ?? null,
+    role: membership.role as 'owner' | 'admin' | 'member' | 'viewer',
+  };
 }
 
 export async function getTenantContext(request: NextRequest): Promise<TenantContext | null> {

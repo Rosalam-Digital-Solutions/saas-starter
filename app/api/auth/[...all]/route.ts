@@ -1,13 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
+import { toNextJsHandler } from 'better-auth/next-js';
 
-export async function GET(request: NextRequest) {
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
-  return NextResponse.json(session);
-}
-
-export async function POST(request: NextRequest) {
-  return NextResponse.json({ error: 'Use the sign-in form' }, { status: 400 });
-}
+export const { GET, POST } = toNextJsHandler(auth);

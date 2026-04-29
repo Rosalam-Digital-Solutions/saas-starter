@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import GebarBilling from '@gebarbilling/server';
 
 async function main() {
@@ -55,10 +56,16 @@ async function main() {
   } catch (err: any) {
     console.error('❌ Gebar connection failed:');
     console.error('  Error:', err.message || err);
+    console.error('  Base URL:', process.env.GEBARBILLING_BASE_URL);
+    console.error('  Plan ID:', process.env.GEBARBILLING_BASE_PLAN_ID);
     
     if (err.response) {
       console.error('  Response:', err.response.data || err.response);
     }
+
+    console.error('');
+    console.error('Check that GEBARBILLING_SECRET_KEY, GEBARBILLING_BASE_URL,');
+    console.error('GEBARBILLING_BASE_PLAN_ID, and the Gebar checkout API route are valid.');
     
     process.exit(1);
   }
