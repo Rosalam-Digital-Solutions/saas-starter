@@ -2,8 +2,10 @@
 
 import type { BillingSubscriptionState } from '@/lib/billing/access';
 
-const checkoutDomain =
-  (process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et').replace(/\/+$/, '');
+const allowedCheckoutDomains = [
+  (process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et').replace(/\/+$/, ''),
+  'https://cs.unibee.dev',
+];
 
 async function readJson<T>(res: Response): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
@@ -56,7 +58,7 @@ export function redirectToHostedBilling(url: string) {
     throw new Error('No hosted billing URL returned');
   }
 
-  if (!url.startsWith(checkoutDomain)) {
+  if (!allowedCheckoutDomains.some(domain => url.startsWith(domain))) {
     throw new Error('Unexpected hosted billing URL returned');
   }
 

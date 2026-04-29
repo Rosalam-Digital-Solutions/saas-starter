@@ -3,14 +3,16 @@ import { createCustomerPortalSession } from '@/lib/payments/gebar';
 import { getTenantContext } from '@/lib/tenant';
 
 function validateHostedUrl(url?: string) {
-  const checkoutDomain =
-    (process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et').replace(/\/+$/, '');
+  const allowedDomains = [
+    (process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et').replace(/\/+$/, ''),
+    'https://cs.unibee.dev',
+  ];
 
   if (!url) {
     throw new Error('No hosted portal URL returned');
   }
 
-  if (!url.startsWith(checkoutDomain)) {
+  if (!allowedDomains.some(domain => url.startsWith(domain))) {
     throw new Error('Unexpected hosted portal URL returned');
   }
 }

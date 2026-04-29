@@ -21,7 +21,7 @@ importers:
         specifier: 0.1.0-beta.0
         version: 0.1.0-beta.0(react@19.1.0)
       '@gebarbilling/server':
-        specifier: beta
+        specifier: 0.1.0-beta.2
         version: 0.1.0-beta.2
       '@gebarbilling/webhooks':
         specifier: beta
