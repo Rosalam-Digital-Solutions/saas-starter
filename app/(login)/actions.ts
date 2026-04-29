@@ -5,6 +5,7 @@ import { db } from '@/lib/db/drizzle';
 import { users, organizations, memberships, activityLogs } from '@/lib/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { z } from 'zod';
 import { generateUniqueSlug } from '@/lib/db/queries';
 
@@ -13,6 +14,48 @@ type ActionResult = {
   success?: string;
   name?: string;
 };
+
+function getSessionCookieFromHeader(setCookieHeader: string | null): {
+  name: string;
+  value: string;
+} | null {
+  if (!setCookieHeader) {
+    return null;
+  }
+
+  const match = setCookieHeader.match(/((?:__Secure-)?better-auth\.session_token)=([^;]+)/);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    name: match[1],
+    value: match[2],
+  };
+}
+
+async function setSessionCookieFromAuthHeader(setCookieHeader: string | null): Promise<void> {
+  const sessionCookie = getSessionCookieFromHeader(setCookieHeader);
+  if (!sessionCookie) {
+    throw new Error('Unable to establish a session cookie');
+  }
+
+  const cookieStore = await cookies();
+  cookieStore.set(sessionCookie.name, sessionCookie.value, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    secure: process.env.NODE_ENV === 'production',
+  });
+}
+
+function getActionErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) {
+    return error.message;
+  }
+
+  return fallback;
+}
 
 // ============ AUTH ACTIONS ============
 
@@ -31,17 +74,28 @@ export async function signIn(prevState: any, formData: FormData): Promise<Action
   }
 
   try {
-    const session = await auth.api.getSession();
-    if (session?.user) {
-      if (redirectTo === 'checkout') {
-        const planKey = formData.get('planKey') as string;
-        redirect(`/dashboard?redirect=checkout&planKey=${planKey}`);
-      }
-      redirect('/dashboard');
+    const { data } = await auth.api.signInEmail({
+      email: result.data.email,
+      password: result.data.password,
+      fetchOptions: {
+        onSuccess(context) {
+          return setSessionCookieFromAuthHeader(context.response.headers.get('set-cookie'));
+        },
+      },
+    });
+
+    if (!data?.user) {
+      return { error: 'Authentication failed' };
     }
-    return { error: 'Authentication failed' };
+
+    if (redirectTo === 'checkout') {
+      const planKey = formData.get('planKey') as string;
+      redirect(`/dashboard?redirect=checkout&planKey=${planKey}`);
+    }
+
+    redirect('/dashboard');
   } catch (e) {
-    return { error: 'Invalid credentials' };
+    return { error: getActionErrorMessage(e, 'Invalid credentials') };
   }
 }
 
@@ -63,43 +117,50 @@ export async function signUp(prevState: any, formData: FormData): Promise<Action
     return { error: 'Invalid form data' };
   }
 
-  // Create user directly in DB (Better Auth handles password hashing)
-  const bcrypt = await import('bcryptjs');
-  const passwordHash = await bcrypt.hash(result.data.password, 12);
-  
-  const [user] = await db
-    .insert(users)
-    .values({
+  try {
+    const { data } = await auth.api.signUpEmail({
       name: result.data.name,
       email: result.data.email,
-      passwordHash,
-    })
-    .returning();
-
-  if (result.data.organizationName) {
-    const slug = await generateUniqueSlug(result.data.organizationName);
-    const [org] = await db
-      .insert(organizations)
-      .values({
-        name: result.data.organizationName,
-        slug,
-        ownerId: user.id,
-      })
-      .returning();
-    
-    await db.insert(memberships).values({
-      userId: user.id,
-      organizationId: org.id,
-      role: 'owner',
+      password: result.data.password,
+      fetchOptions: {
+        onSuccess(context) {
+          return setSessionCookieFromAuthHeader(context.response.headers.get('set-cookie'));
+        },
+      },
     });
-  }
 
-  if (redirectTo === 'checkout') {
-    const planKey = formData.get('planKey') as string;
-    redirect(`/dashboard?redirect=checkout&planKey=${planKey}`);
-  }
+    if (!data?.user) {
+      return { error: 'Account creation failed' };
+    }
 
-  redirect('/dashboard');
+    if (result.data.organizationName) {
+      const slug = await generateUniqueSlug(result.data.organizationName);
+      const ownerId = parseInt(data.user.id, 10);
+      const [org] = await db
+        .insert(organizations)
+        .values({
+          name: result.data.organizationName,
+          slug,
+          ownerId,
+        })
+        .returning();
+
+      await db.insert(memberships).values({
+        userId: ownerId,
+        organizationId: org.id,
+        role: 'owner',
+      });
+    }
+
+    if (redirectTo === 'checkout') {
+      const planKey = formData.get('planKey') as string;
+      redirect(`/dashboard?redirect=checkout&planKey=${planKey}`);
+    }
+
+    redirect('/dashboard');
+  } catch (e) {
+    return { error: getActionErrorMessage(e, 'Account creation failed') };
+  }
 }
 
 export async function signOut() {

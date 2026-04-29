@@ -2,6 +2,21 @@
 
 A deployable Next.js SaaS starter using **GebarBilling** for checkout, subscriptions, billing portal, and webhooks.
 
+## AI-assisted development
+
+This repository includes a dedicated AI workspace under [.ai/README.md](.ai/README.md).
+
+Recommended reading order for future agents:
+
+1. [.ai/PROJECT_CONTEXT.md](.ai/PROJECT_CONTEXT.md)
+2. [.ai/ARCHITECTURE.md](.ai/ARCHITECTURE.md)
+3. [.ai/CODING_RULES.md](.ai/CODING_RULES.md)
+4. [.ai/TASKS.md](.ai/TASKS.md)
+
+Use [.ai/TESTING_SOP.md](.ai/TESTING_SOP.md) before merging and update [.ai/DECISIONS.md](.ai/DECISIONS.md) after architecture changes.
+
+If you change billing, auth, tenancy, or deployment behavior, update the matching `.ai` docs and record the decision in [.ai/DECISIONS.md](.ai/DECISIONS.md).
+
 **Demo: [https://next-saas-start.vercel.app/](https://next-saas-start.vercel.app/)**
 
 ## Features
@@ -24,6 +39,17 @@ A deployable Next.js SaaS starter using **GebarBilling** for checkout, subscript
 - **ORM**: [Drizzle](https://orm.drizzle.team/)
 - **Payments**: [GebarBilling](https://gebarbilling.et/)
 - **UI Library**: [shadcn/ui](https://ui.shadcn.com/)
+
+## Developer Onboarding
+
+1. Install dependencies with `pnpm install`.
+2. Copy [.env.example](.env.example) or [.env.local.example](.env.local.example) to `.env.local`.
+3. Set `POSTGRES_URL`, `AUTH_SECRET`, and the GebarBilling env vars.
+4. Run `pnpm db:generate` and `pnpm db:migrate`.
+5. Seed local data with `pnpm db:seed` if needed.
+6. Start the app with `pnpm dev`.
+
+Use [.ai/TESTING_SOP.md](.ai/TESTING_SOP.md) and [.ai/DEPLOYMENT_SOP.md](.ai/DEPLOYMENT_SOP.md) as the source of truth for local and production workflow.
 
 ## Getting Started
 
@@ -68,28 +94,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 
 ## Environment Variables
 
-Create a `.env` file with the following variables:
+Create a `.env.local` file from [.env.local.example](.env.local.example) and fill in your local values. Do not commit secrets.
 
-```env
-# Required
-BASE_URL=http://localhost:3000
-POSTGRES_URL=postgresql://user:password@localhost:5432/dbname
-AUTH_SECRET=your-secret-key-here
-
-# GebarBilling (get these from your GebarBilling dashboard)
-GEBARBILLING_SECRET_KEY=your-gebar-secret-key
-GEBARBILLING_BASE_URL=https://api.gebarbilling.et
-GEBARBILLING_WEBHOOK_SECRET=your-webhook-secret
-
-# Plan IDs (get these from your GebarBilling dashboard after creating plans)
-GEBARBILLING_BASE_PLAN_ID=plan_base_xxx
-GEBARBILLING_PLUS_PLAN_ID=plan_plus_xxx
-
-# Optional - only required if you want to customize prices
-GEBARBILLING_BASE_PRICE_MONTHLY=800
-GEBARBILLING_PLUS_PRICE_MONTHLY=1200
-GEBARBILLING_CURRENCY=usd
-```
+The canonical variable list is maintained in [.env.example](.env.example).
 
 ## Webhook Endpoint
 
@@ -116,6 +123,14 @@ https://your-domain.com/api/gebar/webhook
 
 Note: Webhook is the source of truth for production subscription status. Checkout redirect only marks status as "pending" for demo UX.
 
+## AI and Architecture Notes
+
+- Billing is tenant-level, not user-level.
+- Teams currently act as tenants or merchants.
+- Webhooks are trusted over checkout callbacks for subscription state.
+- Better Auth migration is planned but intentionally separate from billing hardening.
+- The most useful repo memory lives in [.ai/PROJECT_CONTEXT.md](.ai/PROJECT_CONTEXT.md) and [.ai/ARCHITECTURE.md](.ai/ARCHITECTURE.md).
+
 ## Going to Production
 
 ### Deploy to Vercel
@@ -126,17 +141,7 @@ Note: Webhook is the source of truth for production subscription status. Checkou
 
 ### Vercel Environment Variables
 
-```
-BASE_URL=https://your-domain.com
-POSTGRES_URL=your-production-postgres-url
-AUTH_SECRET=your-random-secret-key
-
-GEBARBILLING_SECRET_KEY=your-gebar-secret-key
-GEBARBILLING_BASE_URL=https://api.gebarbilling.et
-GEBARBILLING_WEBHOOK_SECRET=your-webhook-secret
-GEBARBILLING_BASE_PLAN_ID=plan_base_xxx
-GEBARBILLING_PLUS_PLAN_ID=plan_plus_xxx
-```
+See [.ai/DEPLOYMENT_SOP.md](.ai/DEPLOYMENT_SOP.md) and [.env.example](.env.example) for the required variables.
 
 ### Post-Deploy Setup
 
@@ -177,6 +182,16 @@ saas-starter/
 │       └── access.ts  # Billing access helpers
 └── components/         # UI components
 ```
+
+## Workspace Files
+
+- [.ai/README.md](.ai/README.md)
+- [.ai/PROJECT_CONTEXT.md](.ai/PROJECT_CONTEXT.md)
+- [.ai/ARCHITECTURE.md](.ai/ARCHITECTURE.md)
+- [.ai/CODING_RULES.md](.ai/CODING_RULES.md)
+- [.ai/TESTING_SOP.md](.ai/TESTING_SOP.md)
+- [.ai/DEPLOYMENT_SOP.md](.ai/DEPLOYMENT_SOP.md)
+- [.ai/GEBAR_INTEGRATION.md](.ai/GEBAR_INTEGRATION.md)
 
 ## Other Templates
 
