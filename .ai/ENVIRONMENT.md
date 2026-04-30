@@ -17,7 +17,7 @@ This file documents the environment variables discovered in the repository.
 | `GEBARBILLING_BASE_PRICE_MONTHLY` | Yes | `lib/payments/plans.ts`, `lib/env.ts` | Display/configured monthly price for the Base plan. | `800` |
 | `GEBARBILLING_PLUS_PRICE_MONTHLY` | Yes | `lib/payments/plans.ts`, `lib/env.ts` | Display/configured monthly price for the Plus plan. | `1200` |
 | `GEBARBILLING_CURRENCY` | Yes | `lib/payments/plans.ts`, `lib/env.ts` | Currency code used for pricing display/config. | `usd` |
-| `GEBARBILLING_ENV` | Yes | `lib/env.ts`, `lib/payments/gebar.ts` | Gebar environment used for SDK and hosted checkout URLs. | `prod` |
+| `GEBARBILLING_ENV` | Yes | `lib/env.ts`, `lib/payments/gebar.ts` | Environment value passed through to the Gebar SDK and hosted checkout URLs. | `development` |
 | `NEXT_PUBLIC_APP_URL` | Yes | `lib/payments/gebar.ts`, `lib/api/billing.ts`, `lib/env.ts` | Browser-safe app URL used for checkout return links. | `http://localhost:3000` |
 | `NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN` | Yes | `lib/payments/gebar.ts`, `lib/api/billing.ts`, `app/api/billing/*` | Browser-safe hosted checkout domains for redirects and URL validation. | `https://checkout.gebarbilling.et` |
 

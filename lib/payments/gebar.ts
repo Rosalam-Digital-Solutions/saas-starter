@@ -39,78 +39,6 @@ function splitName(name?: string | null) {
   };
 }
 
-async function postHostedCheckoutSession(input: {
-  email: string;
-  externalUserId: string;
-  firstName?: string;
-  lastName?: string;
-  returnUrl: string;
-  cancelUrl: string;
-  planId: string;
-}) {
-  const baseUrl = requiredEnv('GEBARBILLING_BASE_URL');
-  const checkoutBaseUrl = getCheckoutBaseUrl();
-  const environment = requiredEnv('GEBARBILLING_ENV');
-  const endpoint = new URL('/merchant/session/new_session', baseUrl);
-
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${requiredEnv('GEBARBILLING_SECRET_KEY')}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      email: input.email,
-      externalUserId: input.externalUserId,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      returnUrl: input.returnUrl,
-      cancelUrl: input.cancelUrl,
-      planId: Number(input.planId) || input.planId,
-    }),
-  });
-
-  const text = await response.text();
-  let payload: any;
-
-  try {
-    payload = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(
-      `Gebar hosted checkout returned non-JSON response (${response.status}): ${text || 'empty body'}`
-    );
-  }
-
-  if (!response.ok || (typeof payload.code === 'number' && payload.code !== 0)) {
-    throw new Error(
-      payload.message ||
-        `Gebar hosted checkout failed with status ${response.status}`
-    );
-  }
-
-  const data = payload.data || {};
-  const url =
-    data.url ||
-    data.checkoutUrl ||
-    payload.redirect ||
-    (data.clientSession
-      ? `${checkoutBaseUrl}/hosted/checkout?planId=${encodeURIComponent(input.planId)}&env=${encodeURIComponent(environment)}&session=${encodeURIComponent(String(data.clientSession))}`
-      : undefined);
-
-  if (!url) {
-    throw new Error('Gebar hosted checkout did not return a checkout URL or client session.');
-  }
-
-  return {
-    id: data.clientSession || data.clientToken || `session_${Date.now()}`,
-    url,
-    customerId: data.userId || input.externalUserId,
-    email: data.email || input.email,
-    externalUserId: data.externalUserId || input.externalUserId,
-    raw: payload,
-  };
-}
-
 async function createGebarClient() {
   let GebarBilling: any;
   try {
@@ -121,11 +49,9 @@ async function createGebarClient() {
     throw new Error('Gebar SDK not available');
   }
 
-  const environment = requiredEnv('GEBARBILLING_ENV');
-
   return new GebarBilling(requiredEnv('GEBARBILLING_SECRET_KEY'), {
     baseUrl: requiredEnv('GEBARBILLING_BASE_URL'),
-    environment: environment === 'sandbox' ? 'sandbox' : 'production',
+    environment: requiredEnv('GEBARBILLING_ENV'),
     checkoutDomain: getCheckoutBaseUrl(),
   } as any);
 }
@@ -217,8 +143,8 @@ export async function createCheckoutSession({
       organizationId: organization.id.toString(),
       organizationSlug: organization.slug,
       planKey: plan.key,
-      provider: 'gebar'
-    }
+      provider: 'gebar',
+    },
   };
 
   const checkoutSession = await client.checkout.sessions.create(checkoutInput);
