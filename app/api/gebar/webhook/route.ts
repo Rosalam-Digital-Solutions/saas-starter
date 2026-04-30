@@ -1,6 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { handleGebarSubscriptionEvent } from '@/lib/payments/gebar';
 
+const handledGebarEvents = new Set([
+  'subscription.created',
+  'subscription.updated',
+  'subscription.active',
+  'subscription.trialing',
+  'subscription.cancelled',
+  'subscription.canceled',
+  'subscription.deleted',
+  'invoice.paid',
+  'invoice.payment_failed',
+  'payment.paid',
+  'payment.succeeded',
+  'payment.failed',
+]);
+
 export async function POST(request: NextRequest) {
   const payload = await request.text();
   
@@ -44,7 +59,7 @@ export async function POST(request: NextRequest) {
     
     console.log('Webhook signature verified successfully');
   } catch (error) {
-    console.error('❌ Webhook signature verification failed:', error);
+    console.error('Webhook signature verification failed:', error);
     return NextResponse.json(
       { error: 'Invalid webhook signature' },
       { status: 400 }
@@ -52,31 +67,21 @@ export async function POST(request: NextRequest) {
   }
 
   console.log('Event type:', event.type);
-  console.log('Event data:', JSON.stringify(event.data || event, null, 2));
 
-  switch (event.type) {
-    case 'subscription.created':
-    case 'subscription.updated':
-    case 'subscription.active':
-    case 'subscription.trialing':
-    case 'subscription.cancelled':
-    case 'subscription.canceled':
-    case 'subscription.deleted':
-    case 'invoice.paid':
-    case 'invoice.payment_failed':
-      try {
-        await handleGebarSubscriptionEvent(event);
-        console.log('Webhook event handled successfully');
-      } catch (err) {
-        console.error('Error handling webhook event:', err);
-        return NextResponse.json(
-          { error: 'Event handling failed' },
-          { status: 500 }
-        );
-      }
-      break;
-    default:
-      console.log(`Unhandled event type: ${event.type}`);
+  if (!handledGebarEvents.has(event.type)) {
+    console.log(`Unhandled event type: ${event.type}`);
+    return NextResponse.json({ received: true });
+  }
+
+  try {
+    await handleGebarSubscriptionEvent(event);
+    console.log('Webhook event handled successfully');
+  } catch (err) {
+    console.error('Error handling webhook event:', err);
+    return NextResponse.json(
+      { error: 'Event handling failed' },
+      { status: 500 }
+    );
   }
 
   return NextResponse.json({ received: true });

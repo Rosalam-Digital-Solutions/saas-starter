@@ -150,6 +150,7 @@ export async function createOrUpdateSubscription(
     status?: string | null;
     currentPeriodStart?: Date | null;
     currentPeriodEnd?: Date | null;
+    cancelAtPeriodEnd?: boolean;
   }
 ) {
   const existing = await getOrganizationSubscription(orgId);
@@ -179,6 +180,7 @@ export async function createOrUpdateSubscription(
       status: (data.status as any) ?? 'pending',
       currentPeriodStart: data.currentPeriodStart,
       currentPeriodEnd: data.currentPeriodEnd,
+      cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? false,
     })
     .returning();
 }

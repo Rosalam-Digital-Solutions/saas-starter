@@ -3,65 +3,14 @@ import { db } from '@/lib/db/drizzle';
 import { organizations, memberships, subscriptions } from '@/lib/db/schema';
 import { auth } from '@/lib/auth';
 import { createOrUpdateSubscription } from '@/lib/db/queries';
-import { createCheckoutSession } from '@/lib/payments/gebar';
-import { getGebarPlanByKey, validatePlanConfig } from '@/lib/payments/plans';
-import { getTenantContext } from '@/lib/tenant';
+import { getGebarPlanByKey } from '@/lib/payments/plans';
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
-  console.log('=== GEBAR CHECKOUT SESSION REQUEST ===');
-
-  let body: { planKey?: string };
-
-  try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
-  }
-
-  const planKey = body.planKey;
-
-  if (!planKey) {
-    return NextResponse.json({ error: 'Missing planKey' }, { status: 400 });
-  }
-
-  const ctx = await getTenantContext(request);
-
-  if (!ctx?.user || !ctx.organization) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
-  const plan = getGebarPlanByKey(planKey);
-
-  if (!plan) {
-    return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
-  }
-
-  try {
-    validatePlanConfig(plan);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : 'Invalid plan configuration';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-
-  try {
-    const session = await createCheckoutSession({
-      request,
-      organization: ctx.organization,
-      planKey,
-    });
-
-    return NextResponse.json({
-      url: session.url,
-      sessionId: session.id,
-    });
-  } catch (error) {
-    console.error('Failed to create Gebar checkout session:', error);
-    const message =
-      error instanceof Error ? error.message : 'Failed to create checkout';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Use /api/billing/checkout for hosted checkout sessions.' },
+    { status: 410 }
+  );
 }
 
 export async function GET(request: NextRequest) {

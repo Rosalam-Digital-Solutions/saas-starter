@@ -5,8 +5,31 @@ import {
   createOrUpdateSubscription,
   getSessionFromRequest,
   getOrganizationSubscription,
+  getOrganizationById,
+  getSubscriptionByBillingCustomerId,
 } from '@/lib/db/queries';
-import { getGebarPlanByKey, validatePlanConfig } from './plans';
+import { getGebarPlanByKey, getGebarPlanByPlanId, validatePlanConfig } from './plans';
+
+type SubscriptionStatus =
+  | 'active'
+  | 'trialing'
+  | 'pending'
+  | 'canceled'
+  | 'past_due'
+  | 'paused';
+
+type NormalizedGebarEvent = {
+  eventType: string;
+  organizationId?: number;
+  billingCustomerId?: string;
+  billingSubscriptionId?: string;
+  planId?: string;
+  planName?: string;
+  status: SubscriptionStatus;
+  currentPeriodStart?: Date | null;
+  currentPeriodEnd?: Date | null;
+  cancelAtPeriodEnd?: boolean;
+};
 
 function requiredEnv(name: string): string {
   const value = process.env[name];
@@ -37,6 +60,211 @@ function splitName(name?: string | null) {
     firstName,
     lastName: rest.length ? rest.join(' ') : undefined,
   };
+}
+
+function firstString(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return String(value);
+    }
+  }
+
+  return undefined;
+}
+
+function firstBoolean(...values: unknown[]) {
+  for (const value of values) {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true') return true;
+      if (normalized === 'false') return false;
+    }
+  }
+
+  return undefined;
+}
+
+function parseOrganizationId(value?: string) {
+  if (!value) return undefined;
+
+  const rawId = value.startsWith('org_') ? value.slice(4) : value;
+  const id = Number(rawId);
+  return Number.isInteger(id) && id > 0 ? id : undefined;
+}
+
+function parseGebarDate(value: unknown) {
+  if (!value) return undefined;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const milliseconds = value < 10_000_000_000 ? value * 1000 : value;
+    const date = new Date(milliseconds);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  if (typeof value === 'string' && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return parseGebarDate(numeric);
+    }
+
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? undefined : date;
+  }
+
+  return undefined;
+}
+
+function normalizeSubscriptionStatus(
+  eventType: string,
+  status?: string
+): SubscriptionStatus {
+  const normalized = status?.trim().toLowerCase();
+
+  switch (normalized) {
+    case 'active':
+    case 'trialing':
+    case 'pending':
+    case 'past_due':
+    case 'paused':
+      return normalized;
+    case 'cancelled':
+    case 'canceled':
+    case 'deleted':
+      return 'canceled';
+  }
+
+  switch (eventType) {
+    case 'subscription.active':
+    case 'invoice.paid':
+    case 'payment.paid':
+    case 'payment.succeeded':
+      return 'active';
+    case 'subscription.trialing':
+      return 'trialing';
+    case 'subscription.cancelled':
+    case 'subscription.canceled':
+    case 'subscription.deleted':
+      return 'canceled';
+    case 'invoice.payment_failed':
+    case 'payment.failed':
+      return 'past_due';
+    default:
+      return 'pending';
+  }
+}
+
+function normalizeGebarEvent(payload: any): NormalizedGebarEvent {
+  const eventType = firstString(payload?.type, payload?.eventType, payload?.event_type) ?? 'unknown';
+  const data = payload?.data?.subscription ?? payload?.data?.object ?? payload?.data ?? payload?.object ?? payload?.payload ?? payload;
+  const metadata = data?.metadata ?? payload?.data?.metadata ?? payload?.metadata ?? {};
+  const customer = data?.customer ?? data?.customerData ?? data?.billingCustomer ?? {};
+  const plan = data?.plan ?? data?.product ?? data?.price ?? {};
+  const subscription = data?.subscription ?? {};
+
+  const billingCustomerId = firstString(
+    data?.customerId,
+    data?.customer_id,
+    data?.billingCustomerId,
+    data?.billing_customer_id,
+    customer?.id,
+    customer?.customerId,
+    metadata?.billingCustomerId,
+    metadata?.billing_customer_id
+  );
+
+  const metadataOrganizationId = firstString(
+    metadata?.organizationId,
+    metadata?.organization_id,
+    data?.organizationId,
+    data?.organization_id
+  );
+  const organizationId =
+    parseOrganizationId(metadataOrganizationId) ??
+    parseOrganizationId(firstString(data?.externalUserId, data?.external_user_id, metadata?.externalUserId)) ??
+    parseOrganizationId(billingCustomerId);
+
+  const planId = firstString(
+    data?.planId,
+    data?.plan_id,
+    data?.productId,
+    data?.product_id,
+    subscription?.planId,
+    subscription?.plan_id,
+    plan?.id,
+    plan?.planId,
+    metadata?.planId
+  );
+  const configuredPlan = planId ? getGebarPlanByPlanId(planId) : undefined;
+  const planKey = firstString(metadata?.planKey, metadata?.plan_key);
+  const configuredPlanByKey = planKey ? getGebarPlanByKey(planKey) : undefined;
+
+  return {
+    eventType,
+    organizationId,
+    billingCustomerId,
+    billingSubscriptionId: firstString(
+      data?.subscriptionId,
+      data?.subscription_id,
+      subscription?.id,
+      data?.id
+    ),
+    planId: planId ?? configuredPlanByKey?.gebarPlanId,
+    planName: firstString(
+      data?.planName,
+      data?.plan_name,
+      data?.productName,
+      data?.product_name,
+      plan?.name,
+      configuredPlan?.name,
+      configuredPlanByKey?.name
+    ),
+    status: normalizeSubscriptionStatus(
+      eventType,
+      firstString(data?.status, data?.subscriptionStatus, data?.subscription_status)
+    ),
+    currentPeriodStart: parseGebarDate(
+      data?.currentPeriodStart ??
+        data?.current_period_start ??
+        data?.periodStart ??
+        data?.period_start
+    ),
+    currentPeriodEnd: parseGebarDate(
+      data?.currentPeriodEnd ??
+        data?.current_period_end ??
+        data?.periodEnd ??
+        data?.period_end
+    ),
+    cancelAtPeriodEnd: firstBoolean(
+      data?.cancelAtPeriodEnd,
+      data?.cancel_at_period_end
+    ),
+  };
+}
+
+function definedSubscriptionUpdate(event: NormalizedGebarEvent) {
+  const update: Parameters<typeof createOrUpdateSubscription>[1] = {
+    billingProvider: 'gebar',
+    status: event.status,
+  };
+
+  if (event.billingCustomerId !== undefined) update.billingCustomerId = event.billingCustomerId;
+  if (event.billingSubscriptionId !== undefined) update.billingSubscriptionId = event.billingSubscriptionId;
+  if (event.planId !== undefined) update.planId = event.planId;
+  if (event.planName !== undefined) update.planName = event.planName;
+  if (event.currentPeriodStart !== undefined) update.currentPeriodStart = event.currentPeriodStart;
+  if (event.currentPeriodEnd !== undefined) update.currentPeriodEnd = event.currentPeriodEnd;
+  if (event.cancelAtPeriodEnd !== undefined) update.cancelAtPeriodEnd = event.cancelAtPeriodEnd;
+
+  return update;
 }
 
 async function createGebarClient() {
@@ -102,7 +330,7 @@ export async function createCheckoutSession({
   const existingSubscription = await getOrganizationSubscription(organization.id);
   const externalUserId = `org_${organization.id}`;
   const { firstName, lastName } = splitName(session.user.name);
-  let billingCustomerId = existingSubscription?.billingCustomerId || externalUserId;
+  const billingCustomerId = existingSubscription?.billingCustomerId || externalUserId;
 
   console.log('Using billing customer ID:', billingCustomerId);
 
@@ -142,7 +370,9 @@ export async function createCheckoutSession({
       email: session.user.email,
       organizationId: organization.id.toString(),
       organizationSlug: organization.slug,
+      billingCustomerId,
       planKey: plan.key,
+      planId: plan.gebarPlanId,
       provider: 'gebar',
     },
   };
@@ -225,72 +455,35 @@ export function getBillingStatusMessage(status: string | null | undefined): stri
 
 export async function handleGebarSubscriptionEvent(payload: any) {
   console.log('=== HANDLE GEBAR SUBSCRIPTION EVENT ===');
-  console.log('Raw payload:', JSON.stringify(payload, null, 2));
+  const event = normalizeGebarEvent(payload);
 
-  const data = payload.data || payload.object || payload.payload || payload;
-  
-  const customerId =
-    data.customerId ||
-    data.customer_id ||
-    data.billingCustomerId ||
-    data.organizationId;
+  console.log('Normalized event:', JSON.stringify({
+    eventType: event.eventType,
+    organizationId: event.organizationId,
+    billingCustomerId: event.billingCustomerId,
+    status: event.status,
+    planId: event.planId,
+  }, null, 2));
 
-  if (!customerId) {
-    console.error('No customer ID found in webhook payload');
-    console.log('Available data keys:', Object.keys(data));
+  let organizationId = event.organizationId;
+
+  if (organizationId) {
+    const organization = await getOrganizationById(organizationId);
+    if (!organization) {
+      console.error('No organization found for Gebar webhook:', organizationId);
+      return;
+    }
+  } else if (event.billingCustomerId) {
+    const subscription = await getSubscriptionByBillingCustomerId(event.billingCustomerId);
+    organizationId = subscription?.organizationId;
+  }
+
+  if (!organizationId) {
+    console.error('No organization or billing customer mapping found in Gebar webhook');
     return;
   }
 
-  console.log('Extracted customer ID:', customerId);
-
-  const { getSubscriptionByBillingCustomerId, createOrUpdateSubscription } = await import('@/lib/db/queries');
-  const subscription = await getSubscriptionByBillingCustomerId(customerId);
-
-  if (!subscription) {
-    console.error('No subscription found for billing customer:', customerId);
-    return;
-  }
-
-  const subscriptionId =
-    data.subscriptionId ||
-    data.subscription_id ||
-    data.id;
-
-  const planId =
-    data.planId ||
-    data.plan_id ||
-    data.productId;
-
-  const planName =
-    data.planName ||
-    data.plan_name ||
-    data.productName;
-
-  const status =
-    data.status ||
-    data.subscriptionStatus;
-
-  const currentPeriodEnd =
-    data.currentPeriodEnd ||
-    data.current_period_end ||
-    data.periodEnd;
-
-  const updateData: any = {
-    billingProvider: 'gebar',
-    billingSubscriptionId: subscriptionId,
-    planId: planId,
-    planName: planName,
-    status: status,
-  };
-
-  if (currentPeriodEnd) {
-    updateData.currentPeriodEnd = new Date(currentPeriodEnd);
-  }
-
-  console.log('Status:', status);
-  console.log('Updating subscription with:', JSON.stringify(updateData, null, 2));
-
-  await createOrUpdateSubscription(subscription.organizationId, updateData);
+  await createOrUpdateSubscription(organizationId, definedSubscriptionUpdate(event));
 
   console.log('Subscription updated successfully');
 }
