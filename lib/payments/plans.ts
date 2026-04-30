@@ -12,15 +12,31 @@ export type GebarPlanConfig = {
   features: string[];
 };
 
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+function requiredNumberEnv(name: string): number {
+  const value = Number(requiredEnv(name));
+  if (!Number.isFinite(value)) {
+    throw new Error(`Invalid number for required environment variable: ${name}`);
+  }
+  return value;
+}
+
 export function getGebarPlans(): GebarPlanConfig[] {
   return [
     {
       key: 'base',
       name: 'Base',
       description: 'For small teams getting started.',
-      gebarPlanId: process.env.GEBARBILLING_BASE_PLAN_ID ?? '',
-      unitAmount: Number(process.env.GEBARBILLING_BASE_PRICE_MONTHLY ?? 800),
-      currency: process.env.GEBARBILLING_CURRENCY ?? 'usd',
+      gebarPlanId: requiredEnv('GEBARBILLING_BASE_PLAN_ID'),
+      unitAmount: requiredNumberEnv('GEBARBILLING_BASE_PRICE_MONTHLY'),
+      currency: requiredEnv('GEBARBILLING_CURRENCY'),
       interval: 'month',
       trialPeriodDays: 7,
       features: [
@@ -33,9 +49,9 @@ export function getGebarPlans(): GebarPlanConfig[] {
       key: 'plus',
       name: 'Plus',
       description: 'For teams that need more support and early access.',
-      gebarPlanId: process.env.GEBARBILLING_PLUS_PLAN_ID ?? '',
-      unitAmount: Number(process.env.GEBARBILLING_PLUS_PRICE_MONTHLY ?? 1200),
-      currency: process.env.GEBARBILLING_CURRENCY ?? 'usd',
+      gebarPlanId: requiredEnv('GEBARBILLING_PLUS_PLAN_ID'),
+      unitAmount: requiredNumberEnv('GEBARBILLING_PLUS_PRICE_MONTHLY'),
+      currency: requiredEnv('GEBARBILLING_CURRENCY'),
       interval: 'month',
       trialPeriodDays: 7,
       features: [

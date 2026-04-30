@@ -10,18 +10,34 @@ function findPlanKey(planId: string) {
   )?.key;
 }
 
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 function validateHostedUrl(url?: string) {
-  const allowedDomains = [
-    (process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et').replace(/\/+$/, ''),
-    'https://cs.unibee.dev',
-  ];
+  const rawDomain = requiredEnv('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN');
+
+  const allowedDomains = rawDomain
+    .split(',')
+    .map(d => d.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  console.log('Allowed domains:', allowedDomains);
+
+  if (allowedDomains.length === 0) {
+    throw new Error('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN must include at least one domain');
+  }
 
   if (!url) {
     throw new Error('No hosted checkout URL returned');
   }
 
   if (!allowedDomains.some(domain => url.startsWith(domain))) {
-    throw new Error('Unexpected hosted checkout URL returned');
+    throw new Error(`Unexpected hosted checkout URL returned. Expected one of: ${allowedDomains.join(', ')}. Got: ${url}`);
   }
 }
 

@@ -8,11 +8,11 @@ export async function GET() {
       hasWebhookSecret: !!process.env.GEBARBILLING_WEBHOOK_SECRET,
       hasBasePlanId: !!process.env.GEBARBILLING_BASE_PLAN_ID,
       hasPlusPlanId: !!process.env.GEBARBILLING_PLUS_PLAN_ID,
-      baseUrl: process.env.GEBARBILLING_BASE_URL || 'not set',
-      basePlanId: process.env.GEBARBILLING_BASE_PLAN_ID || 'not set',
+      baseUrl: process.env.GEBARBILLING_BASE_URL,
+      basePlanId: process.env.GEBARBILLING_BASE_PLAN_ID,
     },
     base: {
-      url: process.env.BASE_URL || 'not set',
+      url: process.env.BASE_URL,
     },
     db: {
       hasPostgresUrl: !!process.env.POSTGRES_URL,

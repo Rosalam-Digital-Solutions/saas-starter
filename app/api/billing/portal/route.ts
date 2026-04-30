@@ -2,11 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createCustomerPortalSession } from '@/lib/payments/gebar';
 import { getTenantContext } from '@/lib/tenant';
 
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 function validateHostedUrl(url?: string) {
-  const allowedDomains = [
-    (process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et').replace(/\/+$/, ''),
-    'https://cs.unibee.dev',
-  ];
+  const allowedDomains = requiredEnv('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN')
+    .split(',')
+    .map(d => d.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
+  if (allowedDomains.length === 0) {
+    throw new Error('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN must include at least one domain');
+  }
 
   if (!url) {
     throw new Error('No hosted portal URL returned');

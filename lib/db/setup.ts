@@ -101,6 +101,11 @@ async function getGebarInfo(): Promise<{
   webhookSecret: string;
   basePlanId: string;
   plusPlanId: string;
+  basePriceMonthly: string;
+  plusPriceMonthly: string;
+  currency: string;
+  checkoutDomain: string;
+  environment: string;
 }> {
   console.log('\n--- Step 3: GebarBilling Setup ---');
   console.log(
@@ -108,17 +113,27 @@ async function getGebarInfo(): Promise<{
   );
   
   const secretKey = await question('Enter your GEBARBILLING_SECRET_KEY: ');
-  const baseUrl = await question('Enter your GEBARBILLING_BASE_URL (press Enter for default): ');
+  const baseUrl = await question('Enter your GEBARBILLING_BASE_URL: ');
   const webhookSecret = await question('Enter your GEBARBILLING_WEBHOOK_SECRET: ');
   const basePlanId = await question('Enter your GEBARBILLING_BASE_PLAN_ID: ');
   const plusPlanId = await question('Enter your GEBARBILLING_PLUS_PLAN_ID: ');
+  const basePriceMonthly = await question('Enter your GEBARBILLING_BASE_PRICE_MONTHLY: ');
+  const plusPriceMonthly = await question('Enter your GEBARBILLING_PLUS_PRICE_MONTHLY: ');
+  const currency = await question('Enter your GEBARBILLING_CURRENCY: ');
+  const checkoutDomain = await question('Enter your NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN: ');
+  const environment = await question('Enter your GEBARBILLING_ENV: ');
 
   return {
     secretKey: secretKey.trim(),
-    baseUrl: baseUrl.trim() || 'https://api.gebarbilling.et',
+    baseUrl: baseUrl.trim(),
     webhookSecret: webhookSecret.trim(),
     basePlanId: basePlanId.trim(),
     plusPlanId: plusPlanId.trim(),
+    basePriceMonthly: basePriceMonthly.trim(),
+    plusPriceMonthly: plusPriceMonthly.trim(),
+    currency: currency.trim(),
+    checkoutDomain: checkoutDomain.trim(),
+    environment: environment.trim(),
   };
 }
 
@@ -137,19 +152,26 @@ async function main() {
   
   const POSTGRES_URL = await getPostgresURL();
   const AUTH_SECRET = generateAuthSecret();
-  const BASE_URL = 'http://localhost:3000';
+  const BASE_URL = (await question('Enter your BASE_URL: ')).trim();
+  const NEXT_PUBLIC_APP_URL = (await question('Enter your NEXT_PUBLIC_APP_URL: ')).trim();
   
   const gebar = await getGebarInfo();
 
   await writeEnvFile({
     POSTGRES_URL,
     BASE_URL,
+    NEXT_PUBLIC_APP_URL,
     AUTH_SECRET,
     GEBARBILLING_SECRET_KEY: gebar.secretKey,
     GEBARBILLING_BASE_URL: gebar.baseUrl,
     GEBARBILLING_WEBHOOK_SECRET: gebar.webhookSecret,
     GEBARBILLING_BASE_PLAN_ID: gebar.basePlanId,
     GEBARBILLING_PLUS_PLAN_ID: gebar.plusPlanId,
+    GEBARBILLING_BASE_PRICE_MONTHLY: gebar.basePriceMonthly,
+    GEBARBILLING_PLUS_PRICE_MONTHLY: gebar.plusPriceMonthly,
+    GEBARBILLING_CURRENCY: gebar.currency,
+    NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN: gebar.checkoutDomain,
+    GEBARBILLING_ENV: gebar.environment,
   });
 
   console.log('\n🎉 Setup completed successfully!');

@@ -16,6 +16,14 @@ type ActionResult = {
   name?: string;
 };
 
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
 function getSessionCookieFromHeader(setCookieHeader: string | null): {
   name: string;
   value: string;
@@ -357,7 +365,7 @@ export async function requestPasswordReset(
     await auth.api.requestPasswordReset({
       body: {
         email: result.data.email,
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || process.env.BASE_URL || 'http://localhost:3000'}/reset-password`,
+        redirectTo: `${requiredEnv('NEXT_PUBLIC_APP_URL')}/reset-password`,
       },
     });
   } catch {

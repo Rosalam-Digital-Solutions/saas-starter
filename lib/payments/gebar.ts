@@ -8,6 +8,27 @@ import {
 } from '@/lib/db/queries';
 import { getGebarPlanByKey, validatePlanConfig } from './plans';
 
+function requiredEnv(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+function getCheckoutBaseUrl(): string {
+  const checkoutBaseUrl = requiredEnv('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN')
+    .split(',')[0]
+    ?.trim()
+    .replace(/\/+$/, '');
+
+  if (!checkoutBaseUrl) {
+    throw new Error('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN must include at least one domain');
+  }
+
+  return checkoutBaseUrl;
+}
+
 function splitName(name?: string | null) {
   if (!name) return { firstName: undefined, lastName: undefined };
 
@@ -27,16 +48,15 @@ async function postHostedCheckoutSession(input: {
   cancelUrl: string;
   planId: string;
 }) {
-  const baseUrl = process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et';
-  const checkoutDomain =
-    process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et';
-  const checkoutBaseUrl = checkoutDomain.replace(/\/+$/, '');
+  const baseUrl = requiredEnv('GEBARBILLING_BASE_URL');
+  const checkoutBaseUrl = getCheckoutBaseUrl();
+  const environment = requiredEnv('GEBARBILLING_ENV');
   const endpoint = new URL('/merchant/session/new_session', baseUrl);
 
   const response = await fetch(endpoint, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${process.env.GEBARBILLING_SECRET_KEY}`,
+      Authorization: `Bearer ${requiredEnv('GEBARBILLING_SECRET_KEY')}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
@@ -74,7 +94,7 @@ async function postHostedCheckoutSession(input: {
     data.checkoutUrl ||
     payload.redirect ||
     (data.clientSession
-      ? `${checkoutBaseUrl}/hosted/checkout?planId=${encodeURIComponent(input.planId)}&env=prod&session=${encodeURIComponent(data.clientSession)}`
+      ? `${checkoutBaseUrl}/hosted/checkout?planId=${encodeURIComponent(input.planId)}&env=${encodeURIComponent(environment)}&session=${encodeURIComponent(String(data.clientSession))}`
       : undefined);
 
   if (!url) {
@@ -101,9 +121,13 @@ async function createGebarClient() {
     throw new Error('Gebar SDK not available');
   }
 
-  return new GebarBilling(process.env.GEBARBILLING_SECRET_KEY!, {
-    baseUrl: process.env.GEBARBILLING_BASE_URL || 'https://api.gebarbilling.et',
-  });
+  const environment = requiredEnv('GEBARBILLING_ENV');
+
+  return new GebarBilling(requiredEnv('GEBARBILLING_SECRET_KEY'), {
+    baseUrl: requiredEnv('GEBARBILLING_BASE_URL'),
+    environment: environment === 'sandbox' ? 'sandbox' : 'production',
+    checkoutDomain: getCheckoutBaseUrl(),
+  } as any);
 }
 
 export interface CheckoutSessionParams {
@@ -172,10 +196,7 @@ export async function createCheckoutSession({
     status: 'pending',
   });
 
-  const appUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    process.env.BASE_URL ||
-    request.nextUrl.origin;
+  const appUrl = requiredEnv('NEXT_PUBLIC_APP_URL');
 
   const checkoutInput = {
     customerId: billingCustomerId,
@@ -243,7 +264,7 @@ export async function createCustomerPortalSession({
     customerId: billingCustomerId,
     returnUrl:
       returnUrl ||
-      `${process.env.NEXT_PUBLIC_APP_URL || process.env.BASE_URL}/dashboard/billing?updated=true`
+      `${requiredEnv('NEXT_PUBLIC_APP_URL')}/dashboard/billing?updated=true`
   });
 
   console.log('Portal session response:', JSON.stringify(portalSession, null, 2));

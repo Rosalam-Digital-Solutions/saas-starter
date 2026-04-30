@@ -2,10 +2,25 @@
 
 import type { BillingSubscriptionState } from '@/lib/billing/access';
 
-const allowedCheckoutDomains = [
-  (process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN || 'https://checkout.gebar.et').replace(/\/+$/, ''),
-  'https://cs.unibee.dev',
-];
+function requiredPublicEnv(name: string, value: string | undefined): string {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${name}`);
+  }
+  return value;
+}
+
+const appUrl = requiredPublicEnv('NEXT_PUBLIC_APP_URL', process.env.NEXT_PUBLIC_APP_URL);
+const allowedCheckoutDomains = requiredPublicEnv(
+  'NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN',
+  process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN
+)
+  .split(',')
+  .map(d => d.trim().replace(/\/+$/, ''))
+  .filter(Boolean);
+
+if (allowedCheckoutDomains.length === 0) {
+  throw new Error('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN must include at least one domain');
+}
 
 async function readJson<T>(res: Response): Promise<T> {
   const data = (await res.json().catch(() => ({}))) as T & { error?: string };
@@ -26,7 +41,6 @@ export async function getSubscription() {
 }
 
 export async function createCheckoutSession(planId: string) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
   const res = await fetch('/api/billing/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -41,7 +55,6 @@ export async function createCheckoutSession(planId: string) {
 }
 
 export async function createPortalSession() {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || window.location.origin;
   const res = await fetch('/api/billing/portal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

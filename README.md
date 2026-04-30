@@ -98,7 +98,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 
 Create a `.env.local` file from [.env.local.example](.env.local.example) and fill in your local values. Do not commit secrets.
 
-The canonical variable list is maintained in [.env.example](.env.example). GebarBilling secret values stay server-only; browser checkout uses `NEXT_PUBLIC_GEBARBILLING_PUBLISHABLE_KEY`, `NEXT_PUBLIC_GEBARBILLING_BASE_URL`, and `NEXT_PUBLIC_APP_URL`.
+The canonical variable list is maintained in [.env.example](.env.example). Gebar secret values stay server-only; browser checkout uses `NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN` and `NEXT_PUBLIC_APP_URL`.
 
 ## Webhook Endpoint
 
