@@ -108,6 +108,113 @@ export async function getOrganizationSubscription(orgId: number) {
   return result[0] ?? null;
 }
 
+export async function getSubscriptionByBillingCustomerId(customerId: string) {
+  const result = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.billingCustomerId, customerId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function getSubscriptionByBillingSubscriptionId(subscriptionId: string) {
+  const result = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.billingSubscriptionId, subscriptionId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function getSubscriptionByUserId(userId: string) {
+  const result = await db
+    .select()
+    .from(subscriptions)
+    .where(eq(subscriptions.userId, userId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function updateSubscription(
+  orgId: number,
+  data: {
+    billingCustomerId?: string | null;
+    billingSubscriptionId?: string | null;
+    planId?: string | null;
+    priceId?: string | null;
+    planName?: string | null;
+    status?: 'active' | 'trialing' | 'pending' | 'canceled' | 'cancelled' | 'past_due' | 'paused' | 'unknown';
+    currentPeriodStart?: Date | null;
+    currentPeriodEnd?: Date | null;
+    cancelAtPeriodEnd?: boolean;
+  }
+) {
+  const { status, ...rest } = data;
+  await db
+    .update(subscriptions)
+    .set({
+      ...rest,
+      ...(status !== undefined ? { status } : {}),
+      updatedAt: new Date(),
+    })
+    .where(eq(subscriptions.organizationId, orgId));
+}
+
+export async function createOrUpdateSubscription(
+  orgId: number,
+  data: {
+    id?: string;
+    userId?: string | null;
+    billingProvider?: string;
+    billingCustomerId?: string | null;
+    billingSubscriptionId?: string | null;
+    planId?: string | null;
+    priceId?: string | null;
+    planName?: string | null;
+    status?: string | null;
+    currentPeriodStart?: Date | null;
+    currentPeriodEnd?: Date | null;
+    cancelAtPeriodEnd?: boolean;
+  }
+) {
+  const existing = await getOrganizationSubscription(orgId);
+  
+  if (existing) {
+    const { id: _id, status: _status, ...rest } = data;
+    return await db
+      .update(subscriptions)
+      .set({
+        ...rest,
+        ...(_status !== undefined ? { status: _status as 'active' | 'trialing' | 'pending' | 'canceled' | 'cancelled' | 'past_due' | 'paused' | 'unknown' } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(subscriptions.organizationId, orgId))
+      .returning();
+  }
+  
+  return await db
+    .insert(subscriptions)
+    .values({
+      id: data.id || `sub_${orgId}_${Date.now()}`,
+      organizationId: orgId,
+      userId: data.userId ?? null,
+      billingProvider: data.billingProvider ?? 'gebar',
+      billingCustomerId: data.billingCustomerId,
+      billingSubscriptionId: data.billingSubscriptionId,
+      planId: data.planId,
+      priceId: data.priceId,
+      planName: data.planName,
+      status: (data.status as any) ?? 'unknown',
+      currentPeriodStart: data.currentPeriodStart,
+      currentPeriodEnd: data.currentPeriodEnd,
+      cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? false,
+    })
+    .returning();
+}
+
 // ============ WEBHOOK EVENTS QUERIES ============
 
 export async function getWebhookEventByEventId(eventId: string) {
@@ -136,85 +243,7 @@ export async function markWebhookEventProcessed(eventId: string) {
     .where(eq(webhookEvents.eventId, eventId));
 }
 
-export async function getSubscriptionByBillingCustomerId(customerId: string) {
-  const result = await db
-    .select()
-    .from(subscriptions)
-    .where(eq(subscriptions.billingCustomerId, customerId))
-    .limit(1);
-
-  return result[0] ?? null;
-}
-
-export async function updateSubscription(
-  orgId: number,
-  data: {
-    billingCustomerId?: string | null;
-    billingSubscriptionId?: string | null;
-    planId?: string | null;
-    planName?: string | null;
-    status?: 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' | null;
-    currentPeriodStart?: Date | null;
-    currentPeriodEnd?: Date | null;
-    cancelAtPeriodEnd?: boolean;
-  }
-) {
-  await db
-    .update(subscriptions)
-    .set({
-      ...data,
-      updatedAt: new Date(),
-    })
-    .where(eq(subscriptions.organizationId, orgId));
-}
-
-export async function createOrUpdateSubscription(
-  orgId: number,
-  data: {
-    billingProvider?: string;
-    billingCustomerId?: string | null;
-    billingSubscriptionId?: string | null;
-    planId?: string | null;
-    planName?: string | null;
-    status?: string | null;
-    currentPeriodStart?: Date | null;
-    currentPeriodEnd?: Date | null;
-    cancelAtPeriodEnd?: boolean;
-  }
-) {
-  const existing = await getOrganizationSubscription(orgId);
-  
-  if (existing) {
-    const { status: _status, ...rest } = data;
-    return await db
-      .update(subscriptions)
-      .set({
-        ...rest,
-        ...(_status !== undefined ? { status: _status as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' } : {}),
-        updatedAt: new Date(),
-      })
-      .where(eq(subscriptions.organizationId, orgId))
-      .returning();
-  }
-  
-  return await db
-    .insert(subscriptions)
-    .values({
-      organizationId: orgId,
-      billingProvider: data.billingProvider ?? 'gebar',
-      billingCustomerId: data.billingCustomerId,
-      billingSubscriptionId: data.billingSubscriptionId,
-      planId: data.planId,
-      planName: data.planName,
-      status: (data.status as any) ?? 'pending',
-      currentPeriodStart: data.currentPeriodStart,
-      currentPeriodEnd: data.currentPeriodEnd,
-      cancelAtPeriodEnd: data.cancelAtPeriodEnd ?? false,
-    })
-    .returning();
-}
-
-// ============ ACTIVITY LOGS ============
+// ============ LEGACY COMPATIBILITY ============
 
 export async function logActivity(
   orgId: number,
@@ -325,12 +354,12 @@ export async function updateTeamSubscription(
     billingProvider?: string;
   }
 ) {
+  const { billingStatus, ...rest } = subscriptionData;
   await updateSubscription(teamId, {
-    billingCustomerId: subscriptionData.billingCustomerId,
-    billingSubscriptionId: subscriptionData.billingSubscriptionId,
+    ...rest,
     planId: subscriptionData.billingPlanId,
     planName: subscriptionData.billingPlanName,
-    status: subscriptionData.billingStatus as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' | null,
+    status: billingStatus as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' | undefined,
     currentPeriodEnd: subscriptionData.billingCurrentPeriodEnd,
   });
 }
@@ -357,7 +386,7 @@ export async function updateTeamSubscriptionByBillingCustomerId(
     billingSubscriptionId: subscriptionData.billingSubscriptionId,
     planId: subscriptionData.billingPlanId,
     planName: subscriptionData.billingPlanName,
-    status: subscriptionData.billingStatus as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused' | null,
+    status: subscriptionData.billingStatus as 'active' | 'trialing' | 'pending' | 'canceled' | 'past_due' | 'paused',
     currentPeriodEnd: subscriptionData.billingCurrentPeriodEnd,
   });
 

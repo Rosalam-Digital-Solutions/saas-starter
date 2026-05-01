@@ -1,128 +1,51 @@
-import { NextRequest, NextResponse } from 'next/server';
-import {
-  createCustomerPortalSession,
-  syncOrganizationSubscriptionFromGebar,
-} from '@/lib/payments/gebar';
+import { NextResponse } from 'next/server';
+import { gebar } from '@/lib/billing/gebar';
+import { auth } from '@/lib/auth';
 import { getTenantContext } from '@/lib/tenant';
 
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
+export async function POST(request: Request) {
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
 
-function validateHostedUrl(url?: string) {
-  const allowedDomains = requiredEnv('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN')
-    .split(',')
-    .map(d => d.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
-
-  if (allowedDomains.length === 0) {
-    throw new Error('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN must include at least one domain');
-  }
-
-  if (!url) {
-    throw new Error('No hosted portal URL returned');
-  }
-
-  if (!allowedDomains.some(domain => url.startsWith(domain))) {
-    throw new Error('Unexpected hosted portal URL returned');
-  }
-}
-
-function getErrorDetails(error: unknown) {
-  if (!error || typeof error !== 'object') return undefined;
-
-  const details = error as {
-    code?: string;
-    status?: number;
-    requestId?: string;
-    response?: unknown;
-    raw?: unknown;
-    details?: unknown;
-  };
-
-  return {
-    code: details.code,
-    status: details.status,
-    requestId: details.requestId,
-    response: details.response,
-    raw: details.raw,
-    details: details.details,
-  };
-}
-
-function isNoManageableSubscriptionError(error: unknown) {
-  return (
-    error instanceof Error &&
-    /no latest subscription found|purchase your first plan|no subscription/i.test(error.message)
-  );
-}
-
-function canManageSubscription(status: string | null | undefined) {
-  return ['active', 'trialing', 'past_due', 'paused'].includes(status ?? '');
-}
-
-export async function POST(request: NextRequest) {
-  let body: { returnUrl?: string } = {};
-
-  try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
-
-  const ctx = await getTenantContext(request);
-
-  if (!ctx?.user || !ctx.organization) {
+  if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  let subscription = ctx.subscription;
+  const ctx = await getTenantContext(request as any);
 
-  if (!subscription?.billingCustomerId) {
+  if (!ctx?.organization) {
+    return NextResponse.json(
+      { error: 'No organization found. Create or join an organization first.' },
+      { status: 400 }
+    );
+  }
+
+  const customerId = ctx.subscription?.billingCustomerId ?? `org_${ctx.organization.id}`;
+
+  if (!customerId) {
     return NextResponse.json(
       { error: 'No billing customer found. Start checkout before opening the portal.' },
       { status: 400 }
     );
   }
 
-  if (!canManageSubscription(subscription.status)) {
-    subscription = await syncOrganizationSubscriptionFromGebar(ctx.organization.id);
-  }
-
-  if (!canManageSubscription(subscription?.status)) {
-    return NextResponse.json(
-      { error: 'No manageable subscription found. Choose a plan before opening the portal.' },
-      { status: 409 }
-    );
-  }
-
   try {
-    const portal = await createCustomerPortalSession({
-      request,
-      organization: ctx.organization,
-      returnUrl: body.returnUrl,
+    const portalSession = await gebar.portal.sessions.create({
+      customerId,
+      returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
     });
 
-    validateHostedUrl(portal.url);
-
-    return NextResponse.json({ url: portal.url });
-  } catch (error) {
-    if (isNoManageableSubscriptionError(error)) {
+    if (!portalSession.url) {
       return NextResponse.json(
-        { error: 'No manageable subscription found. Choose a plan before opening the portal.' },
-        { status: 409 }
+        { error: 'Portal session did not return a hosted URL' },
+        { status: 500 }
       );
     }
 
-    console.error('Portal session error:', {
-      message: error instanceof Error ? error.message : 'Unknown portal error',
-      ...getErrorDetails(error),
-    });
-
+    return NextResponse.json({ url: portalSession.url });
+  } catch (error) {
+    console.error('Portal session error:', error);
     const message =
       error instanceof Error
         ? error.message

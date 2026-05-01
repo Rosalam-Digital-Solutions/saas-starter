@@ -49,14 +49,20 @@ export async function syncSubscription() {
   return readJson<BillingSubscriptionState>(res);
 }
 
+export async function getBillingStatus() {
+  const res = await fetch('/api/billing/status', {
+    headers: { Accept: 'application/json' },
+  });
+
+  return readJson<{ hasAccess: boolean; subscription: unknown }>(res);
+}
+
 export async function createCheckoutSession(planId: string) {
   const res = await fetch('/api/billing/checkout', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       planId,
-      successUrl: `${appUrl}/billing/success`,
-      cancelUrl: `${appUrl}/billing/cancel`,
     }),
   });
 
@@ -66,10 +72,6 @@ export async function createCheckoutSession(planId: string) {
 export async function createPortalSession() {
   const res = await fetch('/api/billing/portal', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      returnUrl: `${appUrl}/dashboard?billing=updated`,
-    }),
   });
 
   return readJson<{ url: string }>(res);

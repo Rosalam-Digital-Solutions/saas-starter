@@ -1,8 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createCheckoutSession } from '@/lib/payments/gebar';
+import { NextResponse } from 'next/server';
+import { gebar } from '@/lib/billing/gebar';
+import { auth } from '@/lib/auth';
 import { generateUniqueSlug } from '@/lib/db/queries';
-import { getGebarPlanByKey, getGebarPlans, validatePlanConfig } from '@/lib/payments/plans';
-import { createOrganization, getSession, getTenantContext } from '@/lib/tenant';
+import { getGebarPlanByKey, getGebarPlans } from '@/lib/payments/plans';
+import { createOrganization, getTenantContext } from '@/lib/tenant';
 
 function findPlanKey(planId: string) {
   return getGebarPlans().find(
@@ -10,39 +11,8 @@ function findPlanKey(planId: string) {
   )?.key;
 }
 
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${name}`);
-  }
-  return value;
-}
-
-function validateHostedUrl(url?: string) {
-  const rawDomain = requiredEnv('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN');
-
-  const allowedDomains = rawDomain
-    .split(',')
-    .map(d => d.trim().replace(/\/+$/, ''))
-    .filter(Boolean);
-
-  console.log('Allowed domains:', allowedDomains);
-
-  if (allowedDomains.length === 0) {
-    throw new Error('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN must include at least one domain');
-  }
-
-  if (!url) {
-    throw new Error('No hosted checkout URL returned');
-  }
-
-  if (!allowedDomains.some(domain => url.startsWith(domain))) {
-    throw new Error(`Unexpected hosted checkout URL returned. Expected one of: ${allowedDomains.join(', ')}. Got: ${url}`);
-  }
-}
-
-export async function POST(request: NextRequest) {
-  let body: { planId?: string; successUrl?: string; cancelUrl?: string };
+export async function POST(request: Request) {
+  let body: { planId?: string };
 
   try {
     body = await request.json();
@@ -59,12 +29,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid plan' }, { status: 400 });
   }
 
-  const session = await getSession(request);
+  const session = await auth.api.getSession({
+    headers: request.headers,
+  });
+
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const ctx = await getTenantContext(request);
+  const ctx = await getTenantContext(request as any);
   let organization = ctx?.organization;
 
   if (!organization) {
@@ -85,18 +58,24 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    validatePlanConfig(plan);
-    const session = await createCheckoutSession({
-      request,
-      organization,
-      planKey,
-      successUrl: body.successUrl,
-      cancelUrl: body.cancelUrl,
+    const checkoutSession = await gebar.checkout.sessions.create({
+      email: session.user.email,
+      externalUserId: `org_${organization.id}`,
+      customerId: ctx?.subscription?.billingCustomerId ?? `org_${organization.id}`,
+      planId: plan.gebarPlanId,
+      mode: 'subscription',
+      returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing?checkout=success`,
+      cancelUrl: `${process.env.NEXT_PUBLIC_APP_URL}/pricing?checkout=cancelled`,
     });
 
-    validateHostedUrl(session.url);
+    if (!checkoutSession.url) {
+      return NextResponse.json(
+        { error: 'Checkout session did not return a hosted URL' },
+        { status: 500 }
+      );
+    }
 
-    return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: checkoutSession.url });
   } catch (error) {
     console.error('Checkout session error:', error);
     const message =

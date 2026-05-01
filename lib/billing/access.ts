@@ -7,6 +7,7 @@ export type BillingStatus =
   | 'pending'
   | 'past_due'
   | 'canceled'
+  | 'cancelled'
   | 'inactive';
 
 export type BillingPermission =
@@ -35,6 +36,14 @@ export type BillingSubscriptionState = {
   permissions: BillingPermission[];
   limits: BillingLimits;
 };
+
+export function hasBillingAccess(status?: string | null) {
+  return (
+    status === 'active' ||
+    status === 'trialing' ||
+    status === 'incomplete'
+  );
+}
 
 const baseAccess = {
   permissions: [

@@ -12,23 +12,23 @@ importers:
         specifier: ^1.6.9
         version: 1.6.9(@better-auth/core@1.6.9(@better-auth/utils@0.4.0)(@better-fetch/fetch@1.1.21)(better-call@1.3.5(zod@3.25.76))(jose@6.2.3)(kysely@0.28.16)(nanostores@1.3.0))(@better-auth/utils@0.4.0)(drizzle-orm@0.45.2(better-sqlite3@12.9.0)(gel@2.1.0)(kysely@0.28.16)(postgres@3.4.9))
       '@gebarbilling/core':
-        specifier: 0.2.0
-        version: 0.2.0
-      '@gebarbilling/js':
         specifier: 0.3.0
         version: 0.3.0
+      '@gebarbilling/js':
+        specifier: 0.4.0
+        version: 0.4.0
       '@gebarbilling/nextjs':
+        specifier: 0.1.3
+        version: 0.1.3
+      '@gebarbilling/react':
+        specifier: 0.1.3
+        version: 0.1.3(react@19.1.0)
+      '@gebarbilling/server':
+        specifier: 0.4.0
+        version: 0.4.0
+      '@gebarbilling/webhooks':
         specifier: 0.1.2
         version: 0.1.2
-      '@gebarbilling/react':
-        specifier: 0.1.2
-        version: 0.1.2(react@19.1.0)
-      '@gebarbilling/server':
-        specifier: 0.3.0
-        version: 0.3.0
-      '@gebarbilling/webhooks':
-        specifier: 0.1.1
-        version: 0.1.1
       '@tailwindcss/postcss':
         specifier: 4.1.7
         version: 4.1.7
@@ -689,28 +689,28 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@gebarbilling/core@0.2.0':
-    resolution: {integrity: sha512-xqcN9kPgXw0g5XodfpU3fJmixIu88IDByCzEYZ9b8TkFfQlVtvUXaWLsYIvcybjgXm9Jq0BGAgqM3qx3YKVYOA==}
+  '@gebarbilling/core@0.3.0':
+    resolution: {integrity: sha512-fUsTkeHZIU2Y+rwAkuR1BisPvmmAa4xlDBXOUETGYjNcJquT+G2sZxlAYp5Yd+6l8H1xPKymUP6OhjZUEQP44Q==}
 
-  '@gebarbilling/js@0.3.0':
-    resolution: {integrity: sha512-1ums5/3bj1ev6VCylqQr0ATCg9bRUm7/PZpkbN+TXk4Rd3U3hLQGKlVn8/aiTT4xitMFPQI4+SqIqwYsz/oAWg==}
+  '@gebarbilling/js@0.4.0':
+    resolution: {integrity: sha512-Lm6uDX401AM/c+o9RvE7MMtvIq+KJhvz1ovPqyfZDuO3f7fkG3VW6skNmZABWXLQqei0k4nlGBblMeVB8FFchA==}
 
-  '@gebarbilling/nextjs@0.1.2':
-    resolution: {integrity: sha512-Y4QSzcdQ0R1g3p62c1vwcIFmkeF66wNKLYVL+fnChktDvbY5G3WEXh43rYSzV1jkVkYN6ILdhdBRJ3dKRqjd+g==}
+  '@gebarbilling/nextjs@0.1.3':
+    resolution: {integrity: sha512-rvspn9qrAMtYamosPR0ktRLEUm9xMp7nhb7tUL18egzWRF1NtFn1K4MPGxOou1lcu93yPu5axL5m5075TM1zBQ==}
 
-  '@gebarbilling/react@0.1.2':
-    resolution: {integrity: sha512-1EoOnmozVL/9oqMjKZJd849TEZmG5rBPNQHAALrwCpiovUsumRcUzMxqKKLxqqRemf4eaqiBsk1ZocNkjFg2Mg==}
+  '@gebarbilling/react@0.1.3':
+    resolution: {integrity: sha512-vxK7mnUHy4gjw2r+0Wojn13uK9jtsVKO9YkH/vc5wxI7m3OCM87MBDlcw2+VtoefN4n0rKl1qT0B98zUyx3ZsA==}
     peerDependencies:
       react: '>=18 <20'
 
-  '@gebarbilling/server@0.3.0':
-    resolution: {integrity: sha512-ya9lXi4sRc/0554e2K2AhnmQmhoFwOFbKM/zqjLnBMVPPCSKsevn1PXWt9mlyULsYNHMKjOHcShPhXaKr2QLAA==}
+  '@gebarbilling/server@0.4.0':
+    resolution: {integrity: sha512-B03itaWuWrIAR9l4EITiNGuxGi1kXSiBYlOoub8ZQf09LdtwVJqrA2ITegJwT+cClS5I+TnVm9ncHfvjQWx2HA==}
 
   '@gebarbilling/types@0.1.0':
     resolution: {integrity: sha512-SiVYoNnR+rwMHctAx50aVJ/fnWGOEBppUsIvshy/FGw+IOm8tPFxL4pCydwR04Mhx57+moCxB5VhO9VdFsK36A==}
 
-  '@gebarbilling/webhooks@0.1.1':
-    resolution: {integrity: sha512-QohUFNsdL3SL05SHO8fw83vKPnV5kKFkcNW17PARkaydhza1fDabJaX5XuSdN+9BJDdmXI007I3dsKeZS47P1Q==}
+  '@gebarbilling/webhooks@0.1.2':
+    resolution: {integrity: sha512-mz6zgTH1hB20SDoKqhwtXy8rSwEfl/fhrqHpBYb2be16cGLrUxT7OdYGcSy+3m0U/IQl8NdpF0jAp+twYeCHSQ==}
 
   '@img/colour@1.1.0':
     resolution: {integrity: sha512-Td76q7j57o/tLVdgS746cYARfSyxk8iEfRxewL9h4OMzYhbW4TAcppl0mT4eyqXddh6L/jwoM75mo7ixa/pCeQ==}
@@ -2951,41 +2951,41 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@gebarbilling/core@0.2.0':
+  '@gebarbilling/core@0.3.0':
     dependencies:
       '@gebarbilling/types': 0.1.0
       zod: 3.24.1
 
-  '@gebarbilling/js@0.3.0':
+  '@gebarbilling/js@0.4.0':
     dependencies:
-      '@gebarbilling/core': 0.2.0
+      '@gebarbilling/core': 0.3.0
       '@gebarbilling/types': 0.1.0
 
-  '@gebarbilling/nextjs@0.1.2':
+  '@gebarbilling/nextjs@0.1.3':
     dependencies:
-      '@gebarbilling/js': 0.3.0
-      '@gebarbilling/server': 0.3.0
-      '@gebarbilling/webhooks': 0.1.1
+      '@gebarbilling/js': 0.4.0
+      '@gebarbilling/server': 0.4.0
+      '@gebarbilling/webhooks': 0.1.2
 
-  '@gebarbilling/react@0.1.2(react@19.1.0)':
+  '@gebarbilling/react@0.1.3(react@19.1.0)':
     dependencies:
-      '@gebarbilling/js': 0.3.0
+      '@gebarbilling/js': 0.4.0
       '@gebarbilling/types': 0.1.0
       react: 19.1.0
 
-  '@gebarbilling/server@0.3.0':
+  '@gebarbilling/server@0.4.0':
     dependencies:
-      '@gebarbilling/core': 0.2.0
+      '@gebarbilling/core': 0.3.0
       '@gebarbilling/types': 0.1.0
-      '@gebarbilling/webhooks': 0.1.1
+      '@gebarbilling/webhooks': 0.1.2
 
   '@gebarbilling/types@0.1.0':
     dependencies:
       zod: 3.24.1
 
-  '@gebarbilling/webhooks@0.1.1':
+  '@gebarbilling/webhooks@0.1.2':
     dependencies:
-      '@gebarbilling/core': 0.2.0
+      '@gebarbilling/core': 0.3.0
       '@gebarbilling/types': 0.1.0
 
   '@img/colour@1.1.0':

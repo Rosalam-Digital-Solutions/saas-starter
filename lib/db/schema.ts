@@ -125,21 +125,25 @@ export const subscriptionStatuses = pgEnum('subscription_status', [
   'trialing',
   'pending',
   'canceled',
+  'cancelled',
   'past_due',
   'paused',
+  'unknown',
 ]);
 
 export const subscriptions = pgTable('subscriptions', {
-  id: serial('id').primaryKey(),
+  id: text('id').primaryKey(),
   organizationId: integer('organization_id')
     .notNull()
     .references(() => organizations.id, { onDelete: 'cascade' }),
+  userId: text('user_id'),
   billingProvider: varchar('billing_provider', { length: 20 }).notNull().default('gebar'),
-  billingCustomerId: text('billing_customer_id').unique(),
-  billingSubscriptionId: text('billing_subscription_id').unique(),
+  billingCustomerId: text('billing_customer_id'),
+  billingSubscriptionId: text('billing_subscription_id'),
   planId: text('plan_id'),
+  priceId: text('price_id'),
   planName: varchar('plan_name', { length: 50 }),
-  status: subscriptionStatuses('status'),
+  status: subscriptionStatuses('status').notNull().default('unknown'),
   currentPeriodStart: timestamp('current_period_start'),
   currentPeriodEnd: timestamp('current_period_end'),
   cancelAtPeriodEnd: boolean('cancel_at_period_end').notNull().default(false),

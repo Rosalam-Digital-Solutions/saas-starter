@@ -42,3 +42,24 @@ export const auth = betterAuth({
 
 export type Auth = typeof auth;
 export type Session = Awaited<ReturnType<Auth['api']['getSession']>>;
+
+export async function getCurrentUser(headers?: Headers) {
+  if (!headers) {
+    return null;
+  }
+
+  const session = await auth.api.getSession({
+    headers,
+  });
+
+  if (!session?.user) {
+    return null;
+  }
+
+  return {
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    image: session.user.image,
+  };
+}
