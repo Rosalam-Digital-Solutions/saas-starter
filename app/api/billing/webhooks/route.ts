@@ -10,6 +10,7 @@ import {
   getSubscriptionByBillingCustomerId,
   getOrganizationById,
 } from '@/lib/db/queries';
+import crypto from 'crypto';
 
 function toDate(value: unknown): Date | null {
   if (!value) return null;
@@ -49,26 +50,51 @@ async function resolveOrganizationId(data: any): Promise<number | undefined> {
 
 export async function POST(req: Request) {
   const rawBody = await req.text();
-  const signature = req.headers.get('x-gebarbilling-signature');
 
-  if (!signature) {
-    return new Response('Missing webhook signature', { status: 400 });
-  }
+  const signature = req.headers.get('x-gebarbilling-signature') || req.headers.get('x-signature');
+  const authHeader = req.headers.get('authorization');
+  const eventType = req.headers.get('eventtype') || req.headers.get('EventType');
+  const eventId = req.headers.get('eventid') || req.headers.get('EventId');
+  const msgId = req.headers.get('msg-id') || req.headers.get('Msg-id');
 
   let event: any;
 
   try {
-    event = constructEvent(
-      rawBody,
-      signature,
-      process.env.GEBARBILLING_WEBHOOK_SECRET!,
-      {
-        allowLegacySignatures: true,
+    if (signature && req.headers.get('x-signature-algorithm') === 'hmac') {
+      if (!process.env.GEBARBILLING_WEBHOOK_SECRET) {
+        throw new Error('GEBARBILLING_WEBHOOK_SECRET not configured');
       }
-    );
+
+      const expectedSignature = crypto
+        .createHmac('sha256', process.env.GEBARBILLING_WEBHOOK_SECRET)
+        .update(rawBody)
+        .digest('base64');
+
+      if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))) {
+        throw new Error('Invalid HMAC signature');
+      }
+
+      event = JSON.parse(rawBody);
+    } else if (authHeader) {
+      const expectedAuth = `Bearer ${process.env.GEBARBILLING_WEBHOOK_SECRET}`;
+      if (authHeader !== expectedAuth) {
+        throw new Error('Invalid API key');
+      }
+
+      event = constructEvent(
+        rawBody,
+        signature || '',
+        process.env.GEBARBILLING_WEBHOOK_SECRET!,
+        {
+          allowLegacySignatures: true,
+        }
+      );
+    } else {
+      return new Response('Missing authorization or signature', { status: 401 });
+    }
   } catch (err) {
     console.error('Invalid webhook signature or payload', err);
-    return new Response('Invalid webhook signature', { status: 400 });
+    return new Response('Invalid webhook signature', { status: 401 });
   }
 
   if (!event || !event.id) {
@@ -78,7 +104,7 @@ export async function POST(req: Request) {
   try {
     const existing = await getWebhookEventByEventId(event.id);
     if (existing) {
-      return NextResponse.json({ received: true, id: event.id, duplicate: true });
+      return new Response('success', { status: 200 });
     }
 
     await applyWebhookEvent(event, {
@@ -260,7 +286,7 @@ export async function POST(req: Request) {
     await createWebhookEvent(event.id, event.type ?? 'unknown', event);
     await markWebhookEventProcessed(event.id);
 
-    return NextResponse.json({ received: true, id: event.id, type: event.type });
+    return new Response('success', { status: 200 });
   } catch (error) {
     console.error('Failed processing webhook event:', error);
     return new Response('Webhook processing failed', { status: 500 });

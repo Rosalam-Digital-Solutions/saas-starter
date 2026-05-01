@@ -31,10 +31,15 @@ export async function POST(request: Request) {
   }
 
   try {
-    const portalSession = await gebar.portal.sessions.create({
+    console.log('Creating portal session for customer:', customerId);
+    console.log('GEBARBILLING_BASE_URL:', process.env.GEBARBILLING_BASE_URL);
+
+    const portalSession = await gebar.billingPortal.sessions.create({
       customerId,
       returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
     });
+
+    console.log('Portal session response:', portalSession);
 
     if (!portalSession.url) {
       return NextResponse.json(
@@ -46,6 +51,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ url: portalSession.url });
   } catch (error) {
     console.error('Portal session error:', error);
+    if (error instanceof Error) {
+      console.error('Error details:', error.message);
+      console.error('Error stack:', error.stack);
+    }
     const message =
       error instanceof Error
         ? error.message

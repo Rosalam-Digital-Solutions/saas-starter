@@ -19,6 +19,12 @@ export const gebar = new GebarBilling(requiredEnv('GEBARBILLING_SECRET_KEY'), {
     | 'production'
     | 'test',
   checkoutDomain,
+  logger: {
+    info: (message: string, ...args: unknown[]) => console.log(`[Gebar] ${message}`, ...args),
+    warn: (message: string, ...args: unknown[]) => console.warn(`[Gebar] ${message}`, ...args),
+    error: (message: string, ...args: unknown[]) => console.error(`[Gebar] ${message}`, ...args),
+    debug: (message: string, ...args: unknown[]) => console.debug(`[Gebar] ${message}`, ...args),
+  },
 });
 
 export default gebar;

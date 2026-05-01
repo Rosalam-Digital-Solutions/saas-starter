@@ -7,6 +7,7 @@ import {
   getOrganizationSubscription,
   getOrganizationById,
   getSubscriptionByBillingCustomerId,
+  getSubscriptionByBillingSubscriptionId,
 } from '@/lib/db/queries';
 import { getGebarPlanByKey, getGebarPlanByPlanId, validatePlanConfig } from './plans';
 
@@ -149,8 +150,35 @@ type NormalizedGebarEvent = {
 
 function normalizeGebarEvent(payload: any): NormalizedGebarEvent {
   const eventType = firstString(payload?.type, payload?.eventType, payload?.event_type) ?? 'unknown';
-  const data = payload?.data?.subscription ?? payload?.data?.object ?? payload?.data ?? payload?.object ?? payload?.payload ?? payload;
+  // Check if payload has direct fields like subscriptionId, customerId at top level (common in Gebar webhooks)
+  const data = (payload?.subscriptionId || payload?.customerId || payload?.eventType)
+    ? payload
+    : payload?.data?.subscription ?? payload?.data?.object ?? payload?.data ?? payload?.object ?? payload?.payload ?? payload;
   const metadata = data?.metadata ?? payload?.data?.metadata ?? payload?.metadata ?? {};
+
+  // Handle subscription.end.of.this.cycle events
+  if (eventType === 'subscription.end.of.this.cycle') {
+    const subscriptionId = firstString(
+      data?.subscriptionId,
+      data?.subscription_id,
+      data?.id,
+      payload?.subscriptionId,
+      payload?.subscription_id,
+      payload?.id
+    );
+    return {
+      eventType,
+      billingSubscriptionId: subscriptionId,
+      status: 'pending',
+      organizationId: undefined,
+      billingCustomerId: firstString(data?.customerId, data?.customer_id, payload?.customerId, payload?.customer_id),
+      planId: undefined,
+      planName: undefined,
+      currentPeriodStart: undefined,
+      currentPeriodEnd: undefined,
+      cancelAtPeriodEnd: true,
+    };
+  }
 
   const billingCustomerId = firstString(
     data?.customerId,
@@ -161,10 +189,14 @@ function normalizeGebarEvent(payload: any): NormalizedGebarEvent {
   );
 
   const metadataOrganizationId = firstString(
+    payload?.externalUserId,
+    payload?.external_user_id,
     metadata?.organizationId,
     metadata?.organization_id,
     data?.organizationId,
-    data?.organization_id
+    data?.organization_id,
+    data?.externalUserId,
+    data?.external_user_id
   );
 
   const rawId = metadataOrganizationId?.startsWith('org_')
@@ -206,7 +238,9 @@ function normalizeGebarEvent(payload: any): NormalizedGebarEvent {
     ),
     status: normalizeSubscriptionStatus(
       eventType,
-      data?.status ?? data?.subscriptionStatus ?? data?.subscription_status
+      eventType === 'invoice.paid' || eventType === 'payment.paid' || eventType === 'payment.succeeded'
+        ? 'active'
+        : data?.status ?? data?.subscriptionStatus ?? data?.subscription_status
     ),
     currentPeriodStart: parseGebarDate(
       data?.currentPeriodStart ??
@@ -277,6 +311,7 @@ export async function handleGebarSubscriptionEvent(payload: any) {
     eventType: event.eventType,
     organizationId: event.organizationId,
     billingCustomerId: event.billingCustomerId,
+    billingSubscriptionId: event.billingSubscriptionId,
     status: event.status,
     planId: event.planId,
   }, null, 2));
@@ -291,6 +326,9 @@ export async function handleGebarSubscriptionEvent(payload: any) {
     }
   } else if (event.billingCustomerId) {
     const subscription = await getSubscriptionByBillingCustomerId(event.billingCustomerId);
+    organizationId = subscription?.organizationId;
+  } else if (event.billingSubscriptionId) {
+    const subscription = await getSubscriptionByBillingSubscriptionId(event.billingSubscriptionId);
     organizationId = subscription?.organizationId;
   }
 
