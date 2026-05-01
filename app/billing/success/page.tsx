@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { LoadingState } from '@/components/feedback/loading-state';
 import { ErrorState } from '@/components/feedback/error-state';
-import { getSubscription } from '@/lib/api/billing';
+import { syncSubscription } from '@/lib/api/billing';
 
 const fetcher = (url: string) => fetch(url).then((res) => res.json());
 
@@ -15,7 +15,7 @@ export default function BillingSuccessPage() {
   const { data: user, isLoading: isUserLoading } = useSWR('/api/user', fetcher);
   const { data, isLoading, error } = useSWR(
     user ? '/api/billing/subscription' : null,
-    getSubscription
+    syncSubscription
   );
 
   return (
@@ -46,10 +46,10 @@ export default function BillingSuccessPage() {
           ) : null}
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button asChild className="bg-orange-500 hover:bg-orange-600">
-              <Link href="/dashboard/billing">View billing</Link>
+              <Link href="/dashboard">View dashboard</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/dashboard">Go to dashboard</Link>
+              <Link href="/pricing">View plans</Link>
             </Button>
           </div>
         </CardContent>

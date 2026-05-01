@@ -4,6 +4,7 @@ import type { Subscription } from '@/lib/db/schema';
 export type BillingStatus =
   | 'active'
   | 'trialing'
+  | 'pending'
   | 'past_due'
   | 'canceled'
   | 'inactive';
@@ -69,6 +70,7 @@ export function normalizeBillingStatus(status?: string | null): BillingStatus {
   switch (status) {
     case 'active':
     case 'trialing':
+    case 'pending':
     case 'past_due':
       return status;
     case 'canceled':
@@ -98,7 +100,9 @@ export function toBillingSubscriptionState(
   subscription?: Subscription | null
 ): BillingSubscriptionState {
   const status = normalizeBillingStatus(subscription?.status);
-  const access = status === 'inactive' ? { permissions: [], limits: {} } : getAccessForSubscription(subscription);
+  const access = ['active', 'trialing'].includes(status)
+    ? getAccessForSubscription(subscription)
+    : { permissions: [], limits: {} };
 
   return {
     planId: subscription?.planId ?? null,

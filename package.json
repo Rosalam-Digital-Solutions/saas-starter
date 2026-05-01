@@ -9,7 +9,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "test:gebar": "npx tsx scripts/test-gebar.ts"
+    "test:gebar": "npx tsx scripts/test-gebar.ts",
+    "webhook:listen": "npx tsx scripts/listen-gebar-webhooks.ts"
   },
   "dependencies": {
     "@better-auth/drizzle-adapter": "^1.6.9",
@@ -50,6 +51,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@ngrok/ngrok": "^1.7.0",
     "tsx": "^4.21.0"
   }
 }

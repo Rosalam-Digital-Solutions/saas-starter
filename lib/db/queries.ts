@@ -5,6 +5,7 @@ import {
   organizations, 
   memberships, 
   subscriptions, 
+  webhookEvents,
   activityLogs,
   type User,
   type Organization,
@@ -105,6 +106,34 @@ export async function getOrganizationSubscription(orgId: number) {
     .limit(1);
 
   return result[0] ?? null;
+}
+
+// ============ WEBHOOK EVENTS QUERIES ============
+
+export async function getWebhookEventByEventId(eventId: string) {
+  const result = await db
+    .select()
+    .from(webhookEvents)
+    .where(eq(webhookEvents.eventId, eventId))
+    .limit(1);
+
+  return result[0] ?? null;
+}
+
+export async function createWebhookEvent(eventId: string, eventType: string, payload: unknown) {
+  const [inserted] = await db
+    .insert(webhookEvents)
+    .values({ eventId, eventType, payload })
+    .returning();
+
+  return inserted;
+}
+
+export async function markWebhookEventProcessed(eventId: string) {
+  await db
+    .update(webhookEvents)
+    .set({ processedAt: new Date() })
+    .where(eq(webhookEvents.eventId, eventId));
 }
 
 export async function getSubscriptionByBillingCustomerId(customerId: string) {

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   Bell,
-  CreditCard,
   LayoutDashboard,
   Settings,
   Shield,
@@ -18,7 +17,6 @@ const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Overview' },
   { href: '/dashboard/profile', icon: User, label: 'Profile' },
   { href: '/dashboard/account', icon: Shield, label: 'Account' },
-  { href: '/dashboard/billing', icon: CreditCard, label: 'Billing' },
   { href: '/dashboard/notifications', icon: Bell, label: 'Notifications' },
   { href: '/dashboard/team', icon: Users, label: 'Team' },
   { href: '/dashboard/settings', icon: Settings, label: 'Settings' },

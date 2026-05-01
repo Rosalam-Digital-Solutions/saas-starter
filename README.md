@@ -24,15 +24,15 @@ If you change billing, auth, tenancy, or deployment behavior, update the matchin
 - Marketing landing page (`/`) with animated Terminal element
 - Public pages for features, about, contact, privacy, and terms
 - Pricing page (`/pricing`) which connects to GebarBilling Checkout
-- Dashboard overview, profile, account, billing, notifications, team, and workspace settings
+- Dashboard overview, profile, account, notifications, team, and workspace settings
 - Basic RBAC with Owner and Member roles
-- Subscription management with GebarBilling Customer Portal
+- Hosted subscription management with GebarBilling Customer Portal
 - Forgot/reset password screens wired to Better Auth reset endpoints
 - Email/password authentication with JWTs stored to cookies
 - Global middleware to protect logged-in routes
 - Local middleware to protect Server Actions or validate Zod schemas
 - Activity logging system for any user events
-- Billing-aware dashboard with access features
+- Billing-aware dashboard with a read-only current-plan badge
 
 ## Tech Stack
 
@@ -98,7 +98,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to see the a
 
 Create a `.env.local` file from [.env.local.example](.env.local.example) and fill in your local values. Do not commit secrets.
 
-The canonical variable list is maintained in [.env.example](.env.example). Gebar secret values stay server-only; browser checkout uses `NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN` and `NEXT_PUBLIC_APP_URL`.
+The canonical variable list is maintained in [.env.example](.env.example). Gebar secret values stay server-only; browser checkout uses `NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN` and `NEXT_PUBLIC_APP_URL`. If your GebarBilling deployment exposes a non-default hosted portal endpoint, set `GEBARBILLING_PORTAL_SESSION_PATH` and, when needed, `GEBARBILLING_PORTAL_URL_TEMPLATE`.
 
 ## Webhook Endpoint
 
@@ -106,6 +106,20 @@ For local development, you can test webhooks using the endpoint:
 
 ```
 http://localhost:3000/api/gebar/webhook
+```
+
+To receive Gebar webhooks on your local machine, start the Next.js app in one
+terminal and open an ngrok tunnel in another:
+
+```bash
+pnpm dev
+pnpm webhook:listen
+```
+
+Copy the printed webhook URL into the Gebar dashboard. It will look like:
+
+```
+https://your-ngrok-domain.ngrok-free.app/api/gebar/webhook
 ```
 
 In production, configure your GebarBilling webhook URL:
@@ -119,14 +133,14 @@ https://your-domain.com/api/gebar/webhook
 1. Sign in with the seed user (`test@test.com` / `admin123`)
 2. Visit `/pricing`
 3. Select Base or Plus plan
-4. The client checkout button calls `POST /api/gebar/checkout`
+4. The client checkout button calls `POST /api/billing/checkout`
 5. The server creates the checkout session and returns the hosted checkout URL
 6. The browser redirects with `@gebarbilling/js`
 7. Complete GebarBilling checkout
-8. Return to dashboard
-9. Confirm billing status shows as "pending" (webhook will update to "active")
+8. Return to the dashboard
+9. Confirm the dashboard current-plan badge refreshes from Gebar, then updates from the webhook
 
-Note: Webhook is the source of truth for production subscription status. Checkout redirect only marks status as "pending" for demo UX.
+Note: Webhook is the source of truth for production subscription status. The checkout success page also calls `POST /api/billing/subscription/sync` to re-check Gebar when webhook delivery is still catching up.
 
 ## AI and Architecture Notes
 
@@ -170,8 +184,8 @@ See [.ai/DEPLOYMENT_SOP.md](.ai/DEPLOYMENT_SOP.md) and [.env.example](.env.examp
 saas-starter/
 ├── app/
 │   ├── (dashboard)/          # Protected dashboard routes
-│   │   ├── dashboard/       # Overview, profile, account, billing, team, settings
-│   │   ├── pricing/         # Pricing page
+│   │   ├── dashboard/       # Overview, profile, account, team, settings
+│   │   ├── pricing/         # Hosted checkout entry page
 │   │   ├── features/        # Public feature page
 │   │   ├── about/           # Public about page
 │   │   ├── contact/         # Public contact form
@@ -179,10 +193,8 @@ saas-starter/
 │   │   └── terms/           # Terms page
 │   ├── (login)/             # Auth routes and password reset pages
 │   └── api/
-│       ├── gebar/
-│       │   ├── checkout/  # Checkout session API and callback
-│       │   ├── portal/    # Customer portal session API
-│       │   └── webhook/   # Webhook handler
+│       ├── billing/       # App-facing checkout, portal, subscription, and sync APIs
+│       ├── gebar/         # Hosted checkout callback and webhook handler
 ├── lib/
 │   ├── auth/           # Authentication
 │   ├── db/            # Database schema & queries

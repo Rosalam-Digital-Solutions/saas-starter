@@ -37,7 +37,7 @@ export function PlanGate({
       {fallback || (
         <FeatureLockedCard
           title="Plus feature locked"
-          description="This feature requires the Plus plan. Upgrade from dashboard billing to unlock it."
+          description="This feature requires the Plus plan. Choose a plan to unlock it."
         />
       )}
     </>

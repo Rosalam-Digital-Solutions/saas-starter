@@ -15,7 +15,7 @@ export function PlanCta({
   planKey,
   authenticatedLabel = 'Manage plan',
   unauthenticatedLabel = 'Get Started',
-  activeBehavior = 'dashboard',
+  activeBehavior = 'portal',
   className,
 }: {
   planKey: string;
@@ -65,18 +65,7 @@ export function PlanCta({
   }
 
   if (subscription?.status === 'active' || subscription?.status === 'trialing') {
-    if (activeBehavior === 'portal') {
-      return <PortalButton label={authenticatedLabel} variant="default" />;
-    }
-
-    return (
-      <Button asChild className={className || 'w-full rounded-full bg-orange-500 hover:bg-orange-600'}>
-        <Link href="/dashboard/billing">
-          {authenticatedLabel}
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      </Button>
-    );
+    return <PortalButton label={authenticatedLabel} variant="default" />;
   }
 
   return (

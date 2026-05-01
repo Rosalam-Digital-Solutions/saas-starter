@@ -18,6 +18,8 @@ This file documents the environment variables discovered in the repository.
 | `GEBARBILLING_PLUS_PRICE_MONTHLY` | Yes | `lib/payments/plans.ts`, `lib/env.ts` | Display/configured monthly price for the Plus plan. | `1200` |
 | `GEBARBILLING_CURRENCY` | Yes | `lib/payments/plans.ts`, `lib/env.ts` | Currency code used for pricing display/config. | `usd` |
 | `GEBARBILLING_ENV` | Yes | `lib/env.ts`, `lib/payments/gebar.ts` | Environment value passed through to the Gebar SDK and hosted checkout URLs. | `development` |
+| `GEBARBILLING_PORTAL_SESSION_PATH` | No | `lib/payments/gebar.ts` | Override path or absolute URL for creating hosted portal sessions when the GebarBilling deployment uses a non-default endpoint. | `/merchant/session/user_sub_update_url` |
+| `GEBARBILLING_PORTAL_URL_TEMPLATE` | No | `lib/payments/gebar.ts` | Hosted portal URL template used when the configured portal session response returns a session token instead of a full URL. Supports `{customerId}`, `{returnUrl}`, `{session}`, and `{environment}`. | `https://checkout.gebarbilling.et/portal?session={session}` |
 | `NEXT_PUBLIC_APP_URL` | Yes | `lib/payments/gebar.ts`, `lib/api/billing.ts`, `lib/env.ts` | Browser-safe app URL used for checkout return links. | `http://localhost:3000` |
 | `NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN` | Yes | `lib/payments/gebar.ts`, `lib/api/billing.ts`, `app/api/billing/*` | Browser-safe hosted checkout domains for redirects and URL validation. | `https://checkout.gebarbilling.et` |
 

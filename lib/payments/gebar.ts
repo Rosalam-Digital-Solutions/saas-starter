@@ -39,6 +39,11 @@ function requiredEnv(name: string): string {
   return value;
 }
 
+function optionalEnv(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value || undefined;
+}
+
 function getCheckoutBaseUrl(): string {
   const checkoutBaseUrl = requiredEnv('NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN')
     .split(',')[0]
@@ -50,6 +55,124 @@ function getCheckoutBaseUrl(): string {
   }
 
   return checkoutBaseUrl;
+}
+
+function extractHostedUrl(response: any) {
+  return (
+    response?.url ||
+    response?.portalUrl ||
+    response?.portal_url ||
+    response?.portalURL ||
+    response?.redirect ||
+    response?.redirectUrl ||
+    response?.redirect_url ||
+    response?.hostedUrl ||
+    response?.hosted_url ||
+    response?.data?.url ||
+    response?.data?.portalUrl ||
+    response?.data?.portal_url ||
+    response?.data?.portalURL ||
+    response?.data?.redirect ||
+    response?.data?.redirectUrl ||
+    response?.data?.redirect_url ||
+    response?.data?.hostedUrl ||
+    response?.data?.hosted_url
+  );
+}
+
+function extractPortalSessionToken(response: any) {
+  return firstString(
+    response?.session,
+    response?.sessionId,
+    response?.session_id,
+    response?.clientSession,
+    response?.client_session,
+    response?.portalSession,
+    response?.portal_session,
+    response?.data?.session,
+    response?.data?.sessionId,
+    response?.data?.session_id,
+    response?.data?.clientSession,
+    response?.data?.client_session,
+    response?.data?.portalSession,
+    response?.data?.portal_session
+  );
+}
+
+function buildGebarApiUrl(pathOrUrl: string) {
+  if (/^https?:\/\//i.test(pathOrUrl)) {
+    return pathOrUrl;
+  }
+
+  const baseUrl = requiredEnv('GEBARBILLING_BASE_URL').replace(/\/+$/, '');
+  const path = pathOrUrl.startsWith('/') ? pathOrUrl : `/${pathOrUrl}`;
+  return `${baseUrl}${path}`;
+}
+
+function previewResponseBody(text: string) {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 300);
+}
+
+function parseGebarJson(text: string, context: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error(`${context} response was not valid JSON: ${previewResponseBody(text)}`);
+  }
+}
+
+function buildPortalUrlFromTemplate(
+  template: string,
+  values: {
+    customerId: string;
+    returnUrl: string;
+    session?: string;
+    environment?: string;
+  }
+) {
+  if (template.includes('{session}') && !values.session) {
+    throw new Error('GEBARBILLING_PORTAL_URL_TEMPLATE requires a portal session token');
+  }
+
+  const url = template.replace(/\{(customerId|returnUrl|session|environment)\}/g, (_, key) =>
+    encodeURIComponent(values[key as keyof typeof values] ?? '')
+  );
+
+  if (/\{[^}]+\}/.test(url)) {
+    throw new Error('GEBARBILLING_PORTAL_URL_TEMPLATE contains an unsupported placeholder');
+  }
+
+  return url;
+}
+
+function appendHostedReturnParams(
+  hostedUrl: string | undefined,
+  params: {
+    returnUrl: string;
+    cancelUrl?: string;
+  }
+) {
+  if (!hostedUrl) return hostedUrl;
+
+  const url = new URL(hostedUrl);
+  const returnKeys = ['returnUrl', 'return_url', 'successUrl', 'success_url'];
+  const cancelKeys = ['cancelUrl', 'cancel_url'];
+
+  for (const key of returnKeys) {
+    if (!url.searchParams.has(key)) {
+      url.searchParams.set(key, params.returnUrl);
+    }
+  }
+
+  if (params.cancelUrl) {
+    for (const key of cancelKeys) {
+      if (!url.searchParams.has(key)) {
+        url.searchParams.set(key, params.cancelUrl);
+      }
+    }
+  }
+
+  return url.toString();
 }
 
 function splitName(name?: string | null) {
@@ -125,20 +248,44 @@ function parseGebarDate(value: unknown) {
 
 function normalizeSubscriptionStatus(
   eventType: string,
-  status?: string
+  status?: unknown
 ): SubscriptionStatus {
-  const normalized = status?.trim().toLowerCase();
+  const normalized =
+    typeof status === 'number' && Number.isFinite(status)
+      ? String(status)
+      : typeof status === 'string'
+        ? status.trim().toLowerCase()
+        : undefined;
 
   switch (normalized) {
     case 'active':
+    case 'paid':
+    case 'success':
+    case 'succeeded':
+    case '2':
+    case '20':
+      return 'active';
     case 'trialing':
     case 'pending':
-    case 'past_due':
-    case 'paused':
       return normalized;
+    case 'incomplete':
+    case 'processing':
+    case 'created':
+    case '0':
+    case '1':
+      return 'pending';
+    case 'past_due':
+    case 'failed':
+    case '4':
+      return 'past_due';
+    case 'paused':
+    case '5':
+      return 'paused';
     case 'cancelled':
     case 'canceled':
     case 'deleted':
+    case 'expired':
+    case '3':
       return 'canceled';
   }
 
@@ -229,7 +376,7 @@ function normalizeGebarEvent(payload: any): NormalizedGebarEvent {
     ),
     status: normalizeSubscriptionStatus(
       eventType,
-      firstString(data?.status, data?.subscriptionStatus, data?.subscription_status)
+      data?.status ?? data?.subscriptionStatus ?? data?.subscription_status
     ),
     currentPeriodStart: parseGebarDate(
       data?.currentPeriodStart ??
@@ -282,6 +429,104 @@ async function createGebarClient() {
     environment: requiredEnv('GEBARBILLING_ENV'),
     checkoutDomain: getCheckoutBaseUrl(),
   } as any);
+}
+
+async function createConfiguredPortalSession({
+  billingCustomerId,
+  returnUrl,
+  portalSessionPathOverride,
+}: {
+  billingCustomerId: string;
+  returnUrl: string;
+  portalSessionPathOverride?: string;
+}) {
+  const portalSessionPath =
+    portalSessionPathOverride ?? optionalEnv('GEBARBILLING_PORTAL_SESSION_PATH');
+  const portalUrlTemplate = optionalEnv('GEBARBILLING_PORTAL_URL_TEMPLATE');
+
+  if (!portalSessionPath && portalUrlTemplate) {
+    return {
+      id: `portal_${billingCustomerId}`,
+      customerId: billingCustomerId,
+      url: buildPortalUrlFromTemplate(portalUrlTemplate, {
+        customerId: billingCustomerId,
+        returnUrl,
+        environment: optionalEnv('GEBARBILLING_ENV'),
+      }),
+    };
+  }
+
+  if (!portalSessionPath) {
+    return undefined;
+  }
+
+  const response = await fetch(buildGebarApiUrl(portalSessionPath), {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${requiredEnv('GEBARBILLING_SECRET_KEY')}`,
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+    },
+    body: JSON.stringify({
+      customerId: billingCustomerId,
+      customer_id: billingCustomerId,
+      externalUserId: billingCustomerId,
+      external_user_id: billingCustomerId,
+      returnUrl,
+      return_url: returnUrl,
+      redirectUrl: returnUrl,
+      redirect_url: returnUrl,
+      successUrl: returnUrl,
+      success_url: returnUrl,
+      callbackUrl: returnUrl,
+      callback_url: returnUrl,
+      cancelUrl: returnUrl,
+      cancel_url: returnUrl,
+      metadata: {
+        returnUrl,
+        return_url: returnUrl,
+      },
+    }),
+  });
+
+  const text = await response.text();
+  const json = text ? parseGebarJson(text, 'Configured Gebar portal session') : {};
+
+  if (!response.ok) {
+    const message = firstString(
+      json?.message,
+      json?.error,
+      json?.data?.message,
+      json?.data?.error,
+      previewResponseBody(text)
+    );
+
+    throw new Error(
+      `Configured Gebar portal session failed (${response.status}): ${
+        message || response.statusText
+      }`
+    );
+  }
+
+  const session = extractPortalSessionToken(json);
+  const rawUrl =
+    extractHostedUrl(json) ||
+    (portalUrlTemplate
+      ? buildPortalUrlFromTemplate(portalUrlTemplate, {
+          customerId: billingCustomerId,
+          returnUrl,
+          session,
+          environment: optionalEnv('GEBARBILLING_ENV'),
+        })
+      : undefined);
+  const url = appendHostedReturnParams(rawUrl, { returnUrl });
+
+  return {
+    ...json,
+    id: firstString(json?.id, json?.sessionId, json?.session_id, session) ?? `portal_${billingCustomerId}`,
+    customerId: firstString(json?.customerId, json?.customer_id, billingCustomerId),
+    url,
+  };
 }
 
 export interface CheckoutSessionParams {
@@ -351,6 +596,10 @@ export async function createCheckoutSession({
   });
 
   const appUrl = requiredEnv('NEXT_PUBLIC_APP_URL');
+  const finalReturnUrl =
+    successUrl ||
+    `${appUrl}/api/gebar/checkout?organizationId=${organization.id}&planKey=${plan.key}`;
+  const finalCancelUrl = cancelUrl || `${appUrl}/pricing`;
 
   const checkoutInput = {
     customerId: billingCustomerId,
@@ -361,10 +610,16 @@ export async function createCheckoutSession({
     firstName,
     lastName,
     mode: 'subscription',
-    returnUrl:
-      successUrl ||
-      `${appUrl}/api/gebar/checkout?organizationId=${organization.id}&planKey=${plan.key}`,
-    cancelUrl: cancelUrl || `${appUrl}/pricing`,
+    returnUrl: finalReturnUrl,
+    return_url: finalReturnUrl,
+    redirectUrl: finalReturnUrl,
+    redirect_url: finalReturnUrl,
+    successUrl: finalReturnUrl,
+    success_url: finalReturnUrl,
+    callbackUrl: finalReturnUrl,
+    callback_url: finalReturnUrl,
+    cancelUrl: finalCancelUrl,
+    cancel_url: finalCancelUrl,
     metadata: {
       userId: session.user.id.toString(),
       email: session.user.email,
@@ -374,6 +629,10 @@ export async function createCheckoutSession({
       planKey: plan.key,
       planId: plan.gebarPlanId,
       provider: 'gebar',
+      returnUrl: finalReturnUrl,
+      return_url: finalReturnUrl,
+      cancelUrl: finalCancelUrl,
+      cancel_url: finalCancelUrl,
     },
   };
 
@@ -381,12 +640,20 @@ export async function createCheckoutSession({
 
   console.log('Checkout session response:', JSON.stringify(checkoutSession, null, 2));
 
-  if (!checkoutSession.url) {
+  const checkoutUrl = appendHostedReturnParams(checkoutSession.url, {
+    returnUrl: finalReturnUrl,
+    cancelUrl: finalCancelUrl,
+  });
+
+  if (!checkoutUrl) {
     console.error('No URL in checkout session response');
     throw new Error('Failed to create checkout session. No URL returned.');
   }
 
-  return checkoutSession;
+  return {
+    ...checkoutSession,
+    url: checkoutUrl,
+  };
 }
 
 export interface PortalSessionParams {
@@ -413,19 +680,57 @@ export async function createCustomerPortalSession({
 
   console.log('Using billing customer ID:', billingCustomerId);
 
-  const client = await createGebarClient();
+  const finalReturnUrl =
+    returnUrl ||
+    `${requiredEnv('NEXT_PUBLIC_APP_URL')}/dashboard?billing=updated`;
 
-  console.log('Creating portal session with Gebar...');
-  const portalSession = await client.portal.sessions.create({
-    customerId: billingCustomerId,
-    returnUrl:
-      returnUrl ||
-      `${requiredEnv('NEXT_PUBLIC_APP_URL')}/dashboard/billing?updated=true`
+  const configuredPortalSession = await createConfiguredPortalSession({
+    billingCustomerId,
+    returnUrl: finalReturnUrl,
   });
 
-  console.log('Portal session response:', JSON.stringify(portalSession, null, 2));
+  if (configuredPortalSession) {
+    console.log('Configured portal session response:', JSON.stringify(configuredPortalSession, null, 2));
+    return configuredPortalSession;
+  }
 
-  return portalSession;
+  const client = await createGebarClient();
+  try {
+    console.log('Creating portal session with Gebar...');
+    const portalSession = await client.portal.sessions.create({
+      customerId: billingCustomerId,
+      returnUrl: finalReturnUrl,
+    });
+    const portalUrl = appendHostedReturnParams(extractHostedUrl(portalSession), {
+      returnUrl: finalReturnUrl,
+    });
+
+    console.log('Portal session response:', JSON.stringify(portalSession, null, 2));
+
+    return {
+      ...portalSession,
+      url: portalUrl,
+    };
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes('response was not valid JSON')
+    ) {
+      console.warn('SDK portal session returned non-JSON; trying Gebar hosted portal update endpoint.');
+      const fallbackPortalSession = await createConfiguredPortalSession({
+        billingCustomerId,
+        returnUrl: finalReturnUrl,
+        portalSessionPathOverride: '/merchant/session/user_sub_update_url',
+      });
+
+      if (fallbackPortalSession) {
+        console.log('Fallback portal session response:', JSON.stringify(fallbackPortalSession, null, 2));
+        return fallbackPortalSession;
+      }
+    }
+
+    throw error;
+  }
 }
 
 export function hasBillingAccess(subscription: Subscription | null) {
@@ -486,4 +791,58 @@ export async function handleGebarSubscriptionEvent(payload: any) {
   await createOrUpdateSubscription(organizationId, definedSubscriptionUpdate(event));
 
   console.log('Subscription updated successfully');
+}
+
+export async function syncOrganizationSubscriptionFromGebar(organizationId: number) {
+  const existingSubscription = await getOrganizationSubscription(organizationId);
+  const billingCustomerId = existingSubscription?.billingCustomerId;
+
+  if (!billingCustomerId) {
+    return existingSubscription;
+  }
+
+  const client = await createGebarClient();
+  const billingState = await client.billingState.getForCustomer(billingCustomerId);
+  const remoteSubscription =
+    billingState.activeSubscription ??
+    billingState.subscriptions?.find((subscription: any) =>
+      ['active', 'trialing', 'pending', 'past_due', 'paused'].includes(
+        normalizeSubscriptionStatus(
+          'subscription.updated',
+          subscription.status ?? subscription.subscriptionStatus ?? subscription.subscription_status
+        )
+      )
+    ) ??
+    billingState.subscriptions?.[0];
+
+  if (!remoteSubscription) {
+    return existingSubscription;
+  }
+
+  const planId = firstString(remoteSubscription.planId, billingState.currentPlan?.id);
+  const configuredPlan = planId ? getGebarPlanByPlanId(planId) : undefined;
+  const planName = firstString(
+    billingState.currentPlan?.planName,
+    billingState.currentPlan?.name,
+    configuredPlan?.name
+  );
+
+  const [updatedSubscription] = await createOrUpdateSubscription(organizationId, {
+    billingProvider: 'gebar',
+    billingCustomerId: firstString(remoteSubscription.customerId, billingCustomerId),
+    billingSubscriptionId: firstString(remoteSubscription.id),
+    planId,
+    planName,
+    status: normalizeSubscriptionStatus(
+      'subscription.updated',
+      remoteSubscription.status ??
+        remoteSubscription.subscriptionStatus ??
+        remoteSubscription.subscription_status
+    ),
+    currentPeriodStart: parseGebarDate(remoteSubscription.currentPeriodStart),
+    currentPeriodEnd: parseGebarDate(remoteSubscription.currentPeriodEnd),
+    cancelAtPeriodEnd: remoteSubscription.cancelAtPeriodEnd,
+  });
+
+  return updatedSubscription ?? existingSubscription;
 }

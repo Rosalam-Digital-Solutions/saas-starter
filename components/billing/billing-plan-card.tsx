@@ -33,7 +33,7 @@ export function BillingPlanCard({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
             <Button asChild variant="outline">
-              <Link href="/dashboard/billing">{hasBillingCustomer ? 'Change plan' : 'Choose a plan'}</Link>
+              <Link href="/pricing">{hasBillingCustomer ? 'View plans' : 'Choose a plan'}</Link>
             </Button>
             {hasBillingCustomer ? <PortalButton /> : null}
           </div>

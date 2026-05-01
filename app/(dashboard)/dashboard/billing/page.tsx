@@ -1,11 +1,5 @@
-import { BillingPageClient } from './billing-page-client';
+import { redirect } from 'next/navigation';
 
-export default async function BillingPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ updated?: string }>;
-}) {
-  const params = await searchParams;
-
-  return <BillingPageClient updated={params.updated === 'true'} />;
+export default function BillingPage() {
+  redirect('/dashboard');
 }

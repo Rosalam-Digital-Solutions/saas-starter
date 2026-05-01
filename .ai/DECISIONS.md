@@ -38,6 +38,15 @@ This file is the repository's lightweight ADR log.
 - Consequences: Checkout callbacks may set pending state, but verified events must control active billing state.
 - Files affected: `app/api/gebar/webhook/route.ts`, `lib/payments/gebar.ts`, `app/api/gebar/checkout/route.ts`
 
+## ADR-0005: Subscription sync is a webhook fallback
+
+- Date: 2026-04-30
+- Status: Accepted
+- Context: Local checkout returns can arrive before Gebar webhooks reach the app.
+- Decision: Keep webhooks as source of truth, but allow authenticated users to call `/api/billing/subscription/sync` to refresh the local subscription row from Gebar billing state.
+- Consequences: Checkout success and billing return flows can show fresher state without trusting client-provided billing values.
+- Files affected: `app/api/billing/subscription/sync/route.ts`, `lib/payments/gebar.ts`, `lib/api/billing.ts`
+
 ## Still Needed
 
 - Whether to complete Better Auth migration before adding more tenant features.

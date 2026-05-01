@@ -40,6 +40,15 @@ export async function getSubscription() {
   return readJson<BillingSubscriptionState>(res);
 }
 
+export async function syncSubscription() {
+  const res = await fetch('/api/billing/subscription/sync', {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+  });
+
+  return readJson<BillingSubscriptionState>(res);
+}
+
 export async function createCheckoutSession(planId: string) {
   const res = await fetch('/api/billing/checkout', {
     method: 'POST',
@@ -59,7 +68,7 @@ export async function createPortalSession() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      returnUrl: `${appUrl}/dashboard/billing?updated=true`,
+      returnUrl: `${appUrl}/dashboard?billing=updated`,
     }),
   });
 

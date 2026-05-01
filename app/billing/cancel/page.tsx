@@ -16,14 +16,14 @@ export default function BillingCancelPage() {
         <CardContent className="space-y-5">
           <p className="text-sm text-gray-600">
             No subscription change was completed. You can review pricing again
-            or return to dashboard billing.
+            or return to your dashboard.
           </p>
           <div className="flex flex-col gap-3 sm:flex-row">
             <Button asChild className="bg-orange-500 hover:bg-orange-600">
               <Link href="/pricing">Back to pricing</Link>
             </Button>
             <Button asChild variant="outline">
-              <Link href="/dashboard/billing">Dashboard billing</Link>
+              <Link href="/dashboard">Dashboard</Link>
             </Button>
           </div>
         </CardContent>

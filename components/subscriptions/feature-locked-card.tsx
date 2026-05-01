@@ -21,7 +21,7 @@ export function FeatureLockedCard({
       <CardContent>
         <p className="mb-4 text-sm text-gray-600">{description}</p>
         <Button asChild variant="outline">
-          <Link href="/dashboard/billing">Upgrade to Plus</Link>
+          <Link href="/pricing">Upgrade to Plus</Link>
         </Button>
       </CardContent>
     </Card>

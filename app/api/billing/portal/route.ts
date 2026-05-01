@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createCustomerPortalSession } from '@/lib/payments/gebar';
+import {
+  createCustomerPortalSession,
+  syncOrganizationSubscriptionFromGebar,
+} from '@/lib/payments/gebar';
 import { getTenantContext } from '@/lib/tenant';
 
 function requiredEnv(name: string): string {
@@ -29,6 +32,39 @@ function validateHostedUrl(url?: string) {
   }
 }
 
+function getErrorDetails(error: unknown) {
+  if (!error || typeof error !== 'object') return undefined;
+
+  const details = error as {
+    code?: string;
+    status?: number;
+    requestId?: string;
+    response?: unknown;
+    raw?: unknown;
+    details?: unknown;
+  };
+
+  return {
+    code: details.code,
+    status: details.status,
+    requestId: details.requestId,
+    response: details.response,
+    raw: details.raw,
+    details: details.details,
+  };
+}
+
+function isNoManageableSubscriptionError(error: unknown) {
+  return (
+    error instanceof Error &&
+    /no latest subscription found|purchase your first plan|no subscription/i.test(error.message)
+  );
+}
+
+function canManageSubscription(status: string | null | undefined) {
+  return ['active', 'trialing', 'past_due', 'paused'].includes(status ?? '');
+}
+
 export async function POST(request: NextRequest) {
   let body: { returnUrl?: string } = {};
 
@@ -44,10 +80,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  if (!ctx.subscription?.billingCustomerId) {
+  let subscription = ctx.subscription;
+
+  if (!subscription?.billingCustomerId) {
     return NextResponse.json(
       { error: 'No billing customer found. Start checkout before opening the portal.' },
       { status: 400 }
+    );
+  }
+
+  if (!canManageSubscription(subscription.status)) {
+    subscription = await syncOrganizationSubscriptionFromGebar(ctx.organization.id);
+  }
+
+  if (!canManageSubscription(subscription?.status)) {
+    return NextResponse.json(
+      { error: 'No manageable subscription found. Choose a plan before opening the portal.' },
+      { status: 409 }
     );
   }
 
@@ -62,6 +111,18 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ url: portal.url });
   } catch (error) {
+    if (isNoManageableSubscriptionError(error)) {
+      return NextResponse.json(
+        { error: 'No manageable subscription found. Choose a plan before opening the portal.' },
+        { status: 409 }
+      );
+    }
+
+    console.error('Portal session error:', {
+      message: error instanceof Error ? error.message : 'Unknown portal error',
+      ...getErrorDetails(error),
+    });
+
     const message =
       error instanceof Error
         ? error.message
