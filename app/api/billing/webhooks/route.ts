@@ -129,7 +129,7 @@ export async function POST(req: Request) {
             id: subscriptionId,
             organizationId,
             userId: data.externalUserId ?? data.userId ?? null,
-            billingCustomerId: data.customerId,
+            billingCustomerId: data.customerId ?? data.externalUserId ?? `org_${organizationId}`,
             billingSubscriptionId: data.subscriptionId ?? data.id,
             planId: data.planId,
             priceId: data.priceId,
@@ -143,7 +143,7 @@ export async function POST(req: Request) {
           .onConflictDoUpdate({
             target: subscriptions.id,
             set: {
-              billingCustomerId: data.customerId,
+              billingCustomerId: data.customerId ?? data.externalUserId ?? `org_${organizationId}`,
               billingSubscriptionId: data.subscriptionId ?? data.id,
               planId: data.planId,
               priceId: data.priceId,

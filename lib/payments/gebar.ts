@@ -180,6 +180,43 @@ function normalizeGebarEvent(payload: any): NormalizedGebarEvent {
     };
   }
 
+  // Handle subscription.pending_update.create events (extract subscription ID from metadata)
+  if (eventType === 'subscription.pending_update.create') {
+    const pendingUpdateId = data?.pendingUpdateId ?? data?.pending_update_id ?? metadata?.SubscriptionPendingUpdateId;
+    const subscriptionId = data?.subscriptionId ?? data?.subscription_id ?? data?.id ?? metadata?.subscriptionId;
+    return {
+      eventType,
+      billingSubscriptionId: subscriptionId,
+      status: 'pending',
+      organizationId: undefined,
+      billingCustomerId: firstString(data?.customerId, data?.customer_id, data?.billingCustomerId, metadata?.billingCustomerId),
+      planId: data?.plan?.id ?? data?.planId ?? data?.plan?.planId ?? metadata?.planId,
+      planName: data?.plan?.planName ?? data?.planName,
+      currentPeriodStart: undefined,
+      currentPeriodEnd: parseGebarDate(data?.effectTime ?? data?.effect_time),
+      cancelAtPeriodEnd: true,
+    };
+  }
+
+  // Handle user.subscription.update events (subscription ID may be in description field)
+  if (eventType === 'user.subscription.update') {
+    const description = data?.description ?? payload?.description ?? '';
+    const match = description.match(/#(sub_[a-zA-Z0-9]+)/);
+    const subscriptionId = match ? match[1] : (data?.subscriptionId ?? data?.subscription_id ?? data?.id);
+    return {
+      eventType,
+      billingSubscriptionId: subscriptionId,
+      status: 'pending',
+      organizationId: undefined,
+      billingCustomerId: firstString(data?.customerId, data?.customer_id, data?.billingCustomerId, metadata?.billingCustomerId),
+      planId: data?.plan?.id ?? data?.planId ?? metadata?.planId,
+      planName: data?.plan?.planName ?? data?.planName,
+      currentPeriodStart: undefined,
+      currentPeriodEnd: undefined,
+      cancelAtPeriodEnd: undefined,
+    };
+  }
+
   const billingCustomerId = firstString(
     data?.customerId,
     data?.customer_id,

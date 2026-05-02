@@ -29,6 +29,9 @@ export function ManageBillingButton({
       const data = await res.json();
 
       if (!res.ok || !data.url) {
+        if (data.code === 'no_subscription') {
+          throw new Error('No active subscription found. Purchase a plan first to manage billing.');
+        }
         throw new Error(data.error ?? 'Failed to open billing portal');
       }
 

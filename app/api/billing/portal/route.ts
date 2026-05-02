@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { gebar } from '@/lib/billing/gebar';
 import { auth } from '@/lib/auth';
 import { getTenantContext } from '@/lib/tenant';
 
@@ -31,30 +30,25 @@ export async function POST(request: Request) {
   }
 
   try {
-    console.log('Creating portal session for customer:', customerId);
-    console.log('GEBARBILLING_BASE_URL:', process.env.GEBARBILLING_BASE_URL);
+    const returnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`;
 
-    const portalSession = await gebar.billingPortal.sessions.create({
-      customerId,
-      returnUrl: `${process.env.NEXT_PUBLIC_APP_URL}/dashboard/billing`,
-    });
+    // Build the hosted portal URL directly using the subscription ID
+    const subscriptionId = ctx.subscription?.billingSubscriptionId;
 
-    console.log('Portal session response:', portalSession);
-
-    if (!portalSession.url) {
+    if (!subscriptionId) {
       return NextResponse.json(
-        { error: 'Portal session did not return a hosted URL' },
-        { status: 500 }
+        { error: 'No active subscription found. Please purchase a plan before accessing the billing portal.', code: 'no_subscription' },
+        { status: 400 }
       );
     }
 
-    return NextResponse.json({ url: portalSession.url });
+    const portalUrl = new URL(`${process.env.NEXT_PUBLIC_GEBAR_CHECKOUT_DOMAIN}/hosted/portal`);
+    portalUrl.searchParams.set('subscriptionId', subscriptionId);
+    portalUrl.searchParams.set('returnUrl', returnUrl);
+
+    return NextResponse.json({ url: portalUrl.toString() });
   } catch (error) {
     console.error('Portal session error:', error);
-    if (error instanceof Error) {
-      console.error('Error details:', error.message);
-      console.error('Error stack:', error.stack);
-    }
     const message =
       error instanceof Error
         ? error.message
